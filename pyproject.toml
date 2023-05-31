@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "child-trip-imputation"
+version = "0.1.0"
+description = ""
+authors = ["Nick Fournier <nick.fournier@rsginc.com>"]
+readme = "README.md"
+packages = [{include = "child_trip_imputation"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
