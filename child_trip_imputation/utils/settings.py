@@ -1,9 +1,6 @@
-
 """
 This module creates a global importable settings Namespace.
-
 Other modules can easily inherit global settings by simply importing this module.
-
 """
 
 import yaml

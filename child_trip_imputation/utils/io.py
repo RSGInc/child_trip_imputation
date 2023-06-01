@@ -3,14 +3,21 @@ import pandas as pd
 import pandera as pa
 import psycopg2 as pg
 from psycopg2.extensions import connection
-import settings
+from utils import settings
 
 
 class IO:
-    def setup_local_dirs(self):
-        if settings.CACHE_DIR:
+    """
+    This class is intended to hold data input/output methods. It should be inherited by higher order classes to make the functions available.
+    """
+    
+    def __init__(self) -> None:
+                    
+        # Create receiving folders if not existing        
+        if settings.CACHE_DIR and not os.path.isdir(settings.CACHE_DIR):
             os.makedirs(settings.CACHE_DIR)
-        if settings.OUTPUT_DIR:
+            
+        if settings.OUTPUT_DIR and not os.path.isdir(settings.OUTPUT_DIR):
             os.makedirs(settings.OUTPUT_DIR)
 
     
@@ -44,11 +51,9 @@ class IO:
                     keepalives_idle=600
                 )        
   
-                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", conn)
-                
+                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", conn)                
                 df.to_parquet(cache_path)
-                conn.close()                       
-            
+                conn.close()            
             
             setattr(self, table, df)                        
             
