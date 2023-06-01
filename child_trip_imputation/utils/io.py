@@ -1,49 +1,72 @@
-from argparse import Namespace
 import os
-import yaml
 import pandas as pd
+import pandera as pa
 import psycopg2 as pg
-from dotenv import dotenv_values
-
-
-# Load .env variables into namespace
-with open('settings.yaml', 'r') as file:
-    SETTINGS = Namespace(
-        **yaml.safe_load(file),
-        **dotenv_values(".env")
-        )
+from psycopg2.extensions import connection
+import settings
 
 
 class IO:
     def setup_local_dirs(self):
-        if 'CACHE_DIR' in SETTINGS:
-            os.makedirs(SETTINGS.CACHE_DIR)
-        if 'OUTPUT_DIR' in SETTINGS:
-            os.makedirs(SETTINGS.OUTPUT_DIR)
+        if settings.CACHE_DIR:
+            os.makedirs(settings.CACHE_DIR)
+        if settings.OUTPUT_DIR:
+            os.makedirs(settings.OUTPUT_DIR)
 
-    def get_pop_tables(self):
-        conn = pg.connect(
-            database=SETTINGS.PG_DB,
-            user=SETTINGS.PG_USER,
-            password=SETTINGS.PG_PWD,
-            host=SETTINGS.PG_HOST,
-            port=SETTINGS.PG_PORT,
-            keepalives_idle=600
-        )
+    
+    def get_table(self, table):
+        """
+        Returns pandas DataFrame table for the requested table. Checks first if already loaded, then checks cached data, then fetches from POPS.
 
-        for k in ['households', 'persons', 'trips', 'day']:
-            err = f"{k} table is required in setting.yaml under TABLES"
-            assert k in SETTINGS.TABLES.keys(), err
+        Args:
+            table (str): Canonical table name (e.g., households) mapped to POPS table name (e.g., w_rm_hh) in settings.yaml
+        """
+        
+        if not hasattr(self, table):       
+                        
+            assert isinstance(settings.TABLES, dict)
+            assert isinstance(settings.CACHE_DIR, str)        
+            assert table in settings.TABLES.keys(), f"{table} table is required in setting.yaml under TABLES"
 
-            table_name = SETTINGS.TABLES.get(k)
-            table = pd.read_sql(f"select * from {SETTINGS.STUDY_SCHEMA}.{table_name}", conn)
+            table_name = settings.TABLES.get(table)            
+            cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')
+            
+            if os.path.isfile(cache_path):
+                df = pd.read_parquet(cache_path)
 
-            setattr(self, k, table)
-
-        conn.close()
-
-        return
-
+            else:
+                conn = pg.connect(
+                    database=settings.PG_DB,
+                    user=settings.PG_USER,
+                    password=settings.PG_PWD,
+                    host=settings.PG_HOST,
+                    port=settings.PG_PORT,
+                    keepalives_idle=600
+                )        
+  
+                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", conn)
+                
+                df.to_parquet(cache_path)
+                conn.close()                       
+            
+            
+            setattr(self, table, df)                        
+            
+        else:
+            df = getattr(self, table)
+            
+        if hasattr(self, f'schema_{table}'):
+            schema = getattr(self, f'schema_{table}')
+        else:
+            schema = pa.infer_schema(df)
+            setattr(self, f'schema_{table}', schema)  
+               
+        assert isinstance(schema, pa.DataFrameSchema)
+            
+        return df
+    
+    
+# Debugging
 if __name__ == "__main__":
-    pass
+    IO().get_table('households')
     
