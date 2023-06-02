@@ -3,11 +3,25 @@ PG_DB: "sandag_hts"
 PG_HOST: "pops.rsginc.com"
 PG_PORT: 5432
 TABLES:
-  households: w_rm_hh
-  persons: w_rm_person
-  trips: w_rm_trip
-  day: w_rm_day
+  household:
+    name: w_rm_hh
+    index: hh_id
+  person: 
+    name: w_rm_person
+    index: person_id
+  trip:
+    name: w_rm_trip
+    index: trip_id
+  day: 
+    name: w_rm_day
+    index: day_id
+  codebook: 
+    name: w_value_labels 
+    index: name
 
 # If commented out, data will not be stored locally
 CACHE_DIR: 'cache'
 # OUTPUT_DIR: 'output'
+
+#
+

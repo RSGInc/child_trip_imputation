@@ -8,7 +8,8 @@ from utils import settings
 
 class IO:
     """
-    This class is intended to hold data input/output methods. It should be inherited by higher order classes to make the functions available.
+    This class is intended to hold data input/output methods. 
+    It should be inherited by higher order classes to make the functions available.
     """
     
     def __init__(self) -> None:
@@ -23,24 +24,40 @@ class IO:
     
     def get_table(self, table):
         """
-        Returns pandas DataFrame table for the requested table. Checks first if already loaded, then checks cached data, then fetches from POPS.
+        Returns pandas DataFrame table for the requested table. 
+        Checks first if already loaded, then checks cached data, then fetches from POPS.
 
         Args:
-            table (str): Canonical table name (e.g., households) mapped to POPS table name (e.g., w_rm_hh) in settings.yaml
+            table (str): Canonical table name (e.g., households) 
+            mapped to POPS table name (e.g., w_rm_hh) in settings.yaml
         """
         
         if not hasattr(self, table):       
-                        
-            assert isinstance(settings.TABLES, dict)
-            assert isinstance(settings.CACHE_DIR, str)        
-            assert table in settings.TABLES.keys(), f"{table} table is required in setting.yaml under TABLES"
-
-            table_name = settings.TABLES.get(table)            
+            
+            # Validate parameters            
+            assert isinstance(settings.CACHE_DIR, str), 'CACHE_DIR must be a string path'
+            assert isinstance(settings.TABLES, dict), 'TABLES must be a dictionary of canonical table names and POPS name'
+            assert table in settings.TABLES.keys(), f"{table} table is required in setting.yaml under TABLES"            
+            assert isinstance(settings.TABLES.get(table), dict), 'TABLES item must be dict with name and index'
+            
+            # Extract tables settings item
+            table_item = settings.TABLES.get(table)
+            
+            # Assert it is not empty
+            assert table_item is not None, f'TABLE {table} must not be empty!'
+            assert table_item.get('name'), 'TABLE dictionary must have POPS "name"'            
+                           
+            table_name = table_item.get('name')
+            table_index = table_item.get('index')          
+            
+            # Where to store cached data as parquet
             cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')
             
+            # Read cached file if available
             if os.path.isfile(cache_path):
                 df = pd.read_parquet(cache_path)
 
+            # Else, fetch from POPS
             else:
                 conn = pg.connect(
                     database=settings.PG_DB,
@@ -49,17 +66,22 @@ class IO:
                     host=settings.PG_HOST,
                     port=settings.PG_PORT,
                     keepalives_idle=600
-                )        
+                )
   
-                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", conn)                
-                df.to_parquet(cache_path)
-                conn.close()            
+                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", conn)
+                conn.close()
+                
+                if table_index:
+                    df.set_index(table_index, inplace=True)
+                    
+                df.to_parquet(cache_path)                          
             
             setattr(self, table, df)                        
             
         else:
             df = getattr(self, table)
-            
+        
+        # Extract pandera schema
         if hasattr(self, f'schema_{table}'):
             schema = getattr(self, f'schema_{table}')
         else:
@@ -70,6 +92,8 @@ class IO:
             
         return df
     
+    def to_csv(self):
+        pass
     
 # Debugging
 if __name__ == "__main__":
