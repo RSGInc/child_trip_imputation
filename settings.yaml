@@ -1,7 +1,10 @@
+# POPS settings
 STUDY_SCHEMA: 'spring_2022'
 PG_DB: "sandag_hts"
 PG_HOST: "pops.rsginc.com"
 PG_PORT: 5432
+
+# Processing inputs/outputs
 TABLES:
   household:
     name: w_rm_hh
@@ -23,5 +26,14 @@ TABLES:
 CACHE_DIR: 'cache'
 # OUTPUT_DIR: 'output'
 
-#
+# Parameters
+CODES:
+  CHILD_AGE: 
+    age: [1, 2, 3]
+  
+  PRESCHOOL_AGE: 
+    age: [1]
+
+  PRESCHOOL_TYPES:
+    school_type: [2, 3]
 
