@@ -26,14 +26,18 @@ TABLES:
 CACHE_DIR: 'cache'
 # OUTPUT_DIR: 'output'
 
-# Parameters
+# Codes used to filter data on
 CODES:
+# Non-adults <18 years old
   CHILD_AGE: 
     age: [1, 2, 3]
-  
+# Code for <5 years old
   PRESCHOOL_AGE: 
     age: [1]
-
+# Code for pre-school school types
   PRESCHOOL_TYPES:
     school_type: [2, 3]
+# Code for K-12 and preschool trip purposes
+  SCHOOL_PURPOSES:
+    d_purpose: [3, 21, 26]
 
