@@ -40,4 +40,7 @@ CODES:
 # Code for K-12 and preschool trip purposes
   SCHOOL_PURPOSES:
     d_purpose: [3, 21, 26]
+# Purpose code for home
+  HOME_PURPOSE: 
+    d_purpose: 0
 

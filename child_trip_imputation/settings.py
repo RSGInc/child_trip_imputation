@@ -16,8 +16,7 @@ for k, v in SETTINGS.items():
 
 """
 Passing settings into global namespace, you can set defaults here.
-I am declaring the variables explicitly here for type checking, 
-but you live dangerously and pass variables to the environment dynamically.
+I am declaring the variables explicitly here for type checking despite being assigned dynamically above
 """
 PG_HOST = SETTINGS.get('PG_HOST', 'pops.rsginc.com') # Set defaults like this
 STUDY_SCHEMA = SETTINGS.get('STUDY_SCHEMA')

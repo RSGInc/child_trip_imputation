@@ -27,7 +27,7 @@ class PersonManagerClass:
 class DayManagerClass:
     def __init__(self, day: pd.DataFrame, Person: PersonManagerClass) -> None:
         self.data = day
-        self.Person = Person    
+        self.Person = Person     
 
 class TourManagerClass:
     def __init__(self, tour: pd.DataFrame, Day: DayManagerClass) -> None:
