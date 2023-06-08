@@ -3,7 +3,7 @@ import pandas as pd
 import pandera as pa
 import psycopg2 as pg
 from psycopg2.extensions import connection
-from child_trip_imputation import settings
+import settings
 
 
 class IO:

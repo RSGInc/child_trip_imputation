@@ -6,9 +6,10 @@ from tqdm import tqdm # There is a parallel version of tqdm called pqdm
 # Internal imports
 from utils.io import IO
 import settings
-from utils.misc import get_codes, is_missing_school_trip
-from utils.trips_to_tours import bulk_trip_to_tours
-from child_trip_imputation.imputation.impute_nonproxy import impute_nonproxy
+from utils.misc import is_missing_school_trip, get_index_name
+from methods.trips_to_tours import bulk_trip_to_tours
+from methods.impute_nonproxy import impute_nonproxy
+from methods.impute_school_trips import impute_school_trips
 from managers.managers import HouseholdManagerClass, PersonManagerClass, DayManagerClass, TripManagerClass, TourManagerClass
 
 
@@ -28,65 +29,66 @@ class Imputation(IO):
         
         self.run_imputation()                
        
-    def run_imputation(self):   
+    def run_imputation(self) -> None:
 
-        households_df = self.get_table('household')
-        persons_df = self.get_table('person')
-        days_df = self.get_table('day')
-        trips_df = self.get_table('trip')
-        codebook = self.get_table('codebook')
+        # Tables and index
+        households_df, hh_id_col = self.get_table('household'), get_index_name('household')
+        persons_df, per_id_col = self.get_table('person'), get_index_name('person')
+        days_df, day_id_col = self.get_table('day'), get_index_name('day')
+        trips_df, trip_id_col = self.get_table('trip'), get_index_name('trip')
+        tour_id_col = 'tour_id'
         
+        codebook = self.get_table('codebook')        
         # One off fix, drop duplicated codebook values -- should be fixed in postgres    
         codebook = codebook[~codebook.reset_index()[['name', 'value']].duplicated().to_numpy()]
         
         # # Create vectorized nested loop index
         # index_df = self.index_frame()
         
-        # TODO: Bulk create tours at person level so they can be determined as joint tours later
+        # Bulk create tour IDs per person so they can be determined as joint tours later
         trips_df = bulk_trip_to_tours(trips_df)
         
         # Begin outer loop on households, initialize Household manager
-        for hh_id, hh in tqdm(households_df.groupby('hh_id')):
+        for hh_id, hh in tqdm(households_df.groupby(hh_id_col)):
             Household = HouseholdManagerClass(hh)
-            hh_persons = persons_df[persons_df.hh_id == hh_id]
+            hh_persons = persons_df[persons_df[hh_id_col] == hh_id]
             
-            # Inner loop over persons in household, adding Household to Person manager 
-            for person_id, person in hh_persons.groupby('person_id'):                                
+            # level 1 loop over persons in household, adding Household to Person manager 
+            for person_id, person in hh_persons.groupby(per_id_col):                                
                 Person = PersonManagerClass(person, Household)
-                person_days = days_df[days_df.person_id == person_id]
+                person_days = days_df[days_df[per_id_col] == person_id]
                 
-                # Inner-inner loop over days for persons, adding Person to Day manager
-                for (day_id, day_num), day in person_days.groupby(['day_id','day_num']):
+                # level 2 loop over days for persons, adding Person to Day manager
+                for (day_id, day_num), day in person_days.groupby([day_id_col,'day_num']):
                     Day = DayManagerClass(day, Person)
-                    person_day_trips = trips_df[trips_df.day_id == day_id]
-                    household_day_trips = trips_df[(trips_df.day_num == day_num) & (trips_df.hh_id == hh_id)]
+                    
+                    person_day_trips = trips_df[trips_df[day_id_col] == day_id]
+                    household_day_trips = trips_df[(trips_df.day_num == day_num) & (trips_df[hh_id_col] == hh_id)]
             
-                    # Skip if imputation is not required
-                    if not is_missing_school_trip(Day, person_day_trips):
-                        continue
-                    
-                    self.impute_child_trips(Day, person_day_trips, household_day_trips)
-                    
-                    # TODO: Create tours at this point instead of going right to day_trips above
-                    # person_day_tours = Day.get_tours(day_trips)
-                    # for tour_id, tour in person_day_tours.groupby('tour_id'):
-                    #    Tour = TourManagerClass(tour, Day)
-                    #    tour_trips = trips_df[trips_df.tour_id == tour_id]                    
-                    
-    
-    def impute_child_trips(self, Day, person_day_trips, household_day_trips):
-        # 1) Impute from non-proxy
-        impute_nonproxy()
-        
-        # 2) Impute missing school trips
+                    # Level 3 loop over tours
+                    for tour_id, tour_trips in person_day_trips.groupby(tour_id_col):
+                        # There is no tour table yet, create an empty dummy to be populated
+                        tour = pd.DataFrame(
+                            data={day_id_col: day_id, hh_id_col: hh_id, per_id_col: person_id}, 
+                            index=pd.Index([tour_id], name=tour_id_col)
+                            )
+                        
+                        Tour = TourManagerClass(tour, Day)
+                        Tour.populate_tour(tour_trips)
+            
+                        # Skip if imputation is not required
+                        if is_missing_school_trip(Day, person_day_trips):
+                            
+                            # 1) Impute from non-proxy
+                            impute_nonproxy(tour_trips, household_day_trips)
+                                                        
+                            # 2) Impute missing school trips
+                            impute_school_trips()
+
     
     def report_bad_impute(self):
         pass
         
-
-
-def impute_attendance(self):
-    pass
 
 def impute_stayed_home(self):
     pass
