@@ -34,6 +34,9 @@ class TourManagerClass:
         self.data = tour
         self.Day = Day
         
+    def populate_tour(self, tour_trips):
+        pass
+        
 class TripManagerClass:
     def __init__(self, trip: pd.DataFrame, Tour: TourManagerClass) -> None:
         self.data = trip
