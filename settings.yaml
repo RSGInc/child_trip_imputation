@@ -26,7 +26,9 @@ TABLES:
 CACHE_DIR: 'cache'
 # OUTPUT_DIR: 'output'
 
-# Codes used to filter data on
+# Codes used to filter data on, provide the column name and the values.
+# The purpose is to allow column names to vary while maintaining code stability.
+
 CODES:
 # Non-adults <18 years old
   CHILD_AGE: 
@@ -42,5 +44,8 @@ CODES:
     d_purpose: [3, 21, 26]
 # Purpose code for home
   HOME_PURPOSE: 
-    d_purpose: 0
+    ORIGIN:
+      o_purpose: 1
+    DESTINATION:
+      d_purpose: 1
 
