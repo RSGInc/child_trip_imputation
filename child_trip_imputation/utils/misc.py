@@ -1,58 +1,7 @@
 import pandas as pd
 from managers.managers import DayManagerClass
 import settings
-
-def get_index_name(table_name: str):
-    assert isinstance(settings.TABLES, dict)
-    assert table_name in settings.TABLES.keys(), f'{table_name} not in settings.TABLES'
-    
-    keyvalues = settings.TABLES.get(table_name)
-
-    assert isinstance(keyvalues, dict), f'{table_name} not a dict'            
-    assert 'index' in keyvalues.keys()
-    
-    return keyvalues.get('index')
-
-
-def get_codes(code_name: str | tuple) -> tuple:
-    """
-    Asserts and returns the key-values pair for the requested codebook code
-    
-    Args:
-        code_name (str | tuple): name of code pair under CODES in settings.yaml
-
-    Returns:
-        tuple: (column name: str, codes: list)
-    """
-    
-    assert isinstance(settings.CODES, dict)
-    
-    # Unpack tuple if tuple
-    if isinstance(code_name, tuple):
-        code_name, code_level = code_name
-    else:
-        code_level = None
-        
-    assert code_name in settings.CODES.keys(), f'{code_name} not in CODES'
-    keyvalues = settings.CODES.get(code_name)
-    
-    assert isinstance(keyvalues, dict), f'{code_name} not a dict'            
-    
-    # Unpack second level if tuple
-    if code_level:
-        assert code_level in keyvalues.keys()
-        keyvalues = keyvalues.get(code_level)
-    
-    assert isinstance(keyvalues, dict), f'{code_name} not a dict'            
-
-    # Unpack
-    (col, codes), = keyvalues.items()
-    
-    # Enforce list type
-    codes = codes if isinstance(codes, list) else [codes]
-    
-    return (col, codes)
-
+from settings import get_codes
 
 def is_missing_school_trip(Day: DayManagerClass, person_day_trips: pd.DataFrame) -> bool:
     
@@ -87,4 +36,6 @@ def is_missing_school_trip(Day: DayManagerClass, person_day_trips: pd.DataFrame)
         return False
     
     return True 
-        
+
+def check_spacetime_overlap():
+    pass

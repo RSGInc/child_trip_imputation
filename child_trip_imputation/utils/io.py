@@ -4,12 +4,14 @@ import pandera as pa
 import psycopg2 as pg
 from psycopg2.extensions import connection
 import settings
-
+from methods.trips_to_tours import bulk_trip_to_tours
+from settings import get_index_name
 
 class IO:
     """
-    This class is intended to hold data input/output methods. 
-    It should be inherited by higher order classes to make the functions available.
+    This class handles all input/output operations for the model and serves as a global "database" object.
+    By being a global object, it can be passed to all classes and methods that need to read or write data
+    where the updates are immediately available to all other classes and methods without saving to disk.
     """
     
     def __init__(self) -> None:
@@ -44,8 +46,31 @@ class IO:
         
         return indices_df
 
+    def update_table(self, table, df):
+        setattr(self, table, df)
+        return
+    
     
     def get_table(self, table):
+        if table == 'tour':
+            trips_df = self.get_table('trip')
+            
+            # Bulk create tour IDs per person so they can be determined as joint tours later
+            trips_df = bulk_trip_to_tours(trips_df)            
+            cols = [str(get_index_name(x)) for x in ['day', 'household', 'person']]
+                     
+            assert isinstance(trips_df, pd.DataFrame)
+                
+            tours_df = trips_df.groupby('tour_id').first()
+            
+            assert cols in tours_df.columns, f'Columns {cols} not in tours_df'           
+            
+            return tours_df[cols] 
+            
+        else:
+            return self.get_existing_table(table)
+    
+    def get_existing_table(self, table):
         """
         Returns pandas DataFrame table for the requested table. 
         Checks first if already loaded, then checks cached data, then fetches from POPS.
@@ -57,24 +82,7 @@ class IO:
         
         if not hasattr(self, table):       
             
-            # Validate parameters            
-            assert isinstance(settings.CACHE_DIR, str), 'CACHE_DIR must be a string path'
-            assert isinstance(settings.TABLES, dict), 'TABLES must be a dictionary of canonical table names and POPS name'
-            assert table in settings.TABLES.keys(), f"{table} table is required in setting.yaml under TABLES"            
-            assert isinstance(settings.TABLES.get(table), dict), 'TABLES item must be dict with name and index'
-            
-            # Extract tables settings item
-            table_item = settings.TABLES.get(table)
-            
-            # Assert it is not empty
-            assert table_item is not None, f'TABLE {table} must not be empty!'
-            assert table_item.get('name'), 'TABLE dictionary must have POPS "name"'            
-                           
-            table_name = table_item.get('name')
-            table_index = table_item.get('index')          
-            
-            # Where to store cached data as parquet
-            cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')
+            table_name, table_index, cache_path = self.validate_table_request(table)          
             
             # Read cached file if available
             if os.path.isfile(cache_path):
@@ -117,10 +125,32 @@ class IO:
             
         return df
     
+    def validate_table_request(self, table):
+        
+        # Validate parameters            
+        assert isinstance(settings.CACHE_DIR, str), 'CACHE_DIR must be a string path'
+        assert isinstance(settings.TABLES, dict), 'TABLES must be a dictionary of canonical table names and POPS name'
+        assert table in settings.TABLES.keys(), f"{table} table is required in setting.yaml under TABLES"            
+        assert isinstance(settings.TABLES.get(table), dict), 'TABLES item must be dict with name and index'
+        
+        # Extract tables settings item
+        table_item = settings.TABLES.get(table)
+        
+        # Assert it is not empty
+        assert table_item is not None, f'TABLE {table} must not be empty!'
+        assert table_item.get('name'), 'TABLE dictionary must have POPS "name"'            
+                        
+        table_name = table_item.get('name')
+        table_index = table_item.get('index')
+        
+        # Where to store cached data as parquet
+        cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')
+            
+        
+        return table_name, table_index, cache_path
+    
     def to_csv(self):
         pass
     
-# Debugging
-if __name__ == "__main__":
-    IO().get_table('households')
     
+DBIO = IO()

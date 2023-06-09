@@ -1,6 +1,6 @@
 import pandas as pd
 import settings
-from utils.misc import get_codes, get_index_name
+from settings import get_codes, get_index_name
 
 def bulk_trip_to_tours(trips) -> pd.DataFrame:
     print('Determining tours from trips')
