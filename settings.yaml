@@ -23,9 +23,11 @@ TABLES:
     name: w_value_labels 
     index: name
 
+# Model steps to run
 STEPS:
   - create_tours
-  - impute_nonproxy
+  - flag_unreported_joint_trips
+  - impute_reported_joint_trips
   - impute_school_trips
 
 # If commented out, data will not be stored locally
@@ -57,7 +59,7 @@ CODES:
       d_purpose: 1
 
 JOINT_TRIP_BUFFER:
-  DISTANCE: 1000 # Miles
+  DISTANCE: 1000 # Feet
   TIME: 15 # Minutes
 
 # In case there are non-default column names

@@ -54,6 +54,8 @@ COLUMN_NAMES = {
     'MODE': 'mode_type',
     'TRAVELDATE': 'travel_date',
     'DRIVER': 'driver',
+    'JOINT_TRIP_ID_NAME': 'joint_trip_id',
+    'JOINT_TRIPNUM_COL': 'joint_trip_num'
     }
 
 COLUMN_NAMES_UPDATE = SETTINGS.get('COLUMN_NAMES', {})

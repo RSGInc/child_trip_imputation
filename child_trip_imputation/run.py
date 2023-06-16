@@ -19,18 +19,35 @@ from school_trips.impute import ImputeSchoolTrips
     •	[impute_attendance] No trip to school, but student is reported to have attended or attendance not reported
     •	[report_bad_impute] Unable to import, report warning/summary
 """
- # Dict of last state of imputation
-LAST_STATE = {}
 
 class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         
     def __init__(self) -> None:
-        
+        """
+        This class inherits methods from ImputeNonProxyTrips and ImputeSchoolTrips.
+        The methods are run in the order specified in settings.STEPS using the redefined wrappers below 
+        that interact with the DBIO object to enable caching and to allow the other functions to run standalone
+        """
         assert isinstance(settings.STEPS, list)
         for step in settings.STEPS:
-            getattr(self, step)()
+            
+            # If step already run, load from cache
+            if settings.RESUME_AFTER and step in DBIO.cache_log.index:
+                table = DBIO.cache_log.loc[step, 'table_name']
+                cache_path = DBIO.cache_log.loc[step, 'cached_table']
+                assert isinstance(cache_path, str), f'Cached table path for step {step} is not a string'                
+                DBIO.get_table(table, step)
+            else:            
+                getattr(self, step)()
     
-
+    # Local function
+    def report_bad_impute(self) -> None:
+        pass
+            
+    def validate_table_relations(self) -> None:
+        pass
+    
+    # These inherited functions are wrappers to interact with the DBIO object
     def create_tours(self) -> None:           
         trips_df = DBIO.get_table('trip')
         
@@ -52,27 +69,32 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         assert set(tours_df.columns).intersection(set(cols)), f'Columns {cols} not in tours_df'
 
         # Update the tours table in DB
-        DBIO.update_table('tour', tours_df[cols])
+        DBIO.update_table('tour', tours_df[cols], step_name = 'create_tours')
 
-
-    def impute_nonproxy(self) -> None:
+    def flag_unreported_joint_trips(self) -> None:
         """
-        1) Impute all non-proxy joint trips and update DB object.
-        This was written as a standalone class so it can be run independently of this imputation class, but able to be iherited easily.
-        """        
-        
-        assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
-        
-        kwargs = {
-            'persons_df': DBIO.get_table('person'),
-            'trips_df': DBIO.get_table('trip')[:100],
-            **settings.JOINT_TRIP_BUFFER
-            }
-        
-        imputed_nonproxy_trips_df = super(Imputation, self).impute_nonproxy(**kwargs)
+        Flag all unreported joint trips and update DB object. 
+        """
+        assert isinstance(settings.JOINT_TRIP_BUFFER, dict)        
+        kwargs = { 'trips_df': DBIO.get_table('trip'), **settings.JOINT_TRIP_BUFFER}        
+        flagged_trips_df = super(Imputation, self).flag_unreported_joint_trips(**kwargs)
         
         # Update the class DBIO object data.
-        DBIO.update_table('trip', imputed_nonproxy_trips_df, step_name = 'impute_nonproxy')
+        DBIO.update_table('trip', flagged_trips_df, step_name = 'flag_unreported_joint_trips')
+        
+        return
+
+    def impute_reported_joint_trips(self) -> None:
+        """
+        Impute all missing reported joint trips and update DB object.
+        """
+        kwargs = {'persons_df': DBIO.get_table('person'), 'trips_df': DBIO.get_table('trip')}        
+        updated_trips_df = super(Imputation, self).impute_reported_joint_trips(**kwargs)
+        
+        # Update the class DBIO object data.
+        DBIO.update_table('trip', updated_trips_df, step_name = 'impute_reported_joint_trips')
+        
+        return
 
     def impute_school_trips(self) -> None:
         """
@@ -92,14 +114,12 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         imputed_nonproxy_trips_df = super(Imputation, self).impute_school_trips(**kwargs)
         
         # Update the class DBIO object data.
+        assert isinstance(imputed_nonproxy_trips_df, pd.DataFrame), f'imputed_nonproxy_trips_df is not a DataFrame'
         DBIO.update_table('trip', imputed_nonproxy_trips_df, step_name = 'impute_nonproxy')
 
-
-    
-    def report_bad_impute(self) -> None:
-        pass
-            
-    def validate_table_relations(self) -> None:
+    def reconcile_id_sets(self) -> None:
+        # some of the ID sequences are inconsistent, so we need to reconcile them
+        # E.g., trip_id starts at ...003 but trip_num starts at 1
         pass
 
 if __name__ == "__main__":
