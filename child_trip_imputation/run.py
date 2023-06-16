@@ -2,16 +2,14 @@
 import logging
 import pandas as pd
 from tqdm import tqdm # There is a parallel version of tqdm called pqdm
+from collections.abc import Iterable
 
 # Internal imports
 from utils.io import DBIO
 import settings
-from settings import get_index_name
-from utils.misc import is_missing_school_trip
-from methods.trips_to_tours import bulk_trip_to_tours
-from methods.impute_nonproxy import impute_nonproxy
-from methods.impute_school_trips import impute_school_trips
-from managers.managers import HouseholdManagerClass, PersonManagerClass, DayManagerClass, TripManagerClass, TourManagerClass
+from utils.trips_to_tours import bulk_trip_to_tours
+from nonproxy.impute import ImputeNonProxyTrips
+from school_trips.impute import ImputeSchoolTrips
 
 
 """
@@ -21,63 +19,80 @@ from managers.managers import HouseholdManagerClass, PersonManagerClass, DayMana
     •	[impute_attendance] No trip to school, but student is reported to have attended or attendance not reported
     •	[report_bad_impute] Unable to import, report warning/summary
 """
+ # Dict of last state of imputation
+LAST_STATE = {}
 
-class Imputation:
+class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         
-    def __init__(self) -> None:        
-        self.run_imputation()                
-       
-    def run_imputation(self) -> None:
+    def __init__(self) -> None:
+        
+        assert isinstance(settings.STEPS, list)
+        for step in settings.STEPS:
+            getattr(self, step)()
+    
 
-        # # Tables and index
-        # households_df = DBIO.get_table('household')
-        # persons_df = DBIO.get_table('person')
-        # days_df,        day_id_col  = DBIO.get_table('day')
-        # trips_df,       trip_id_col = DBIO.get_table('trip'), get_index_name('trip')
-        # # tours_df,       tour_id_col = DBIO.get_table('tour'), 'tour_id'
+    def create_tours(self) -> None:           
+        trips_df = DBIO.get_table('trip')
         
-        # 1) Impute all non-proxy joint trips
-        trips_df = impute_nonproxy(DBIO.get_table('person'), DBIO.get_table('trip'))
+        # Bulk create tour IDs per person so they can be determined as joint tours later
+        trips_df = bulk_trip_to_tours(trips_df)
         
-        # Update the class instance data. Any imputed values must be updated in the class instance
-        # Updates in the class managers are local and not reflected in the class instance
+        # Update the trip table in DB to include tour IDs
         DBIO.update_table('trip', trips_df)
+                   
+        assert isinstance(trips_df, pd.DataFrame)
         
-        # Begin outer loop on households, initialize Household manager
-        for hh_id, hh in tqdm(DBIO.get_table('household').groupby(level=0)):
-            Household = HouseholdManagerClass(hh)
-            
-            # Get persons in household
-            household_person = Household.get_related('person')
-            assert isinstance(household_person, pd.DataFrame)
-            
-            # Initialize all person-day-tour-trip managers into a dictionary that can be accessed by person ID
-            # Persons = {k: PersonManagerClass(df, Household) for k, df in household_person.groupby(level=0)}
-                        
-            # level 1 loop over persons in household, adding Household to Person manager
-            for person_id, person in household_person.groupby(level=0):                        
-                Person = PersonManagerClass(person, Household)
-                person_days = Person.get_related('day')
-                            
-                # level 2 loop over days for persons, adding Person to Day manager
-                for day_id, day in person_days.groupby(level=0):
-                    Day = DayManagerClass(day, Person)
-                    person_day_trips = Day.get_related('trip', on=['hh_id', 'day_num'])
-                    person_day_tours = Day.get_related('tour', on=['hh_id', 'day_num'])
-                    assert isinstance(person_day_trips, pd.DataFrame)
+        # Get the first trip for each tour to create a tours table
+        tours_df = trips_df.groupby('tour_id').first()
+        
+        # Manually add day_num and tour_num to tours_df result            
+        cols = [str(settings.get_index_name(x)) for x in ['day', 'household', 'person']]
+        cols += ['day_num', 'tour_num']
+         
+        assert set(tours_df.columns).intersection(set(cols)), f'Columns {cols} not in tours_df'
 
-                    # Skip if imputation is not required
-                    if is_missing_school_trip(Day, person_day_trips):
-                        # 2) Impute missing school trips
-                        impute_school_trips()                    
-                
-                    # Level 3 loop over tours to populate tours
-                    for tour_id, tour in person_day_tours.groupby(level=0):
-                        # There is no tour table yet, create an empty dummy to be populated
-                        Tour = TourManagerClass(tour, Day)
-                        person_day_tour_trips = Tour.get_related('trip', on=['hh_id', 'day_num', 'tour_num'])
-                        Tour.populate_tour(person_day_tour_trips)
+        # Update the tours table in DB
+        DBIO.update_table('tour', tours_df[cols])
+
+
+    def impute_nonproxy(self) -> None:
+        """
+        1) Impute all non-proxy joint trips and update DB object.
+        This was written as a standalone class so it can be run independently of this imputation class, but able to be iherited easily.
+        """        
         
+        assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
+        
+        kwargs = {
+            'persons_df': DBIO.get_table('person'),
+            'trips_df': DBIO.get_table('trip')[:100],
+            **settings.JOINT_TRIP_BUFFER
+            }
+        
+        imputed_nonproxy_trips_df = super(Imputation, self).impute_nonproxy(**kwargs)
+        
+        # Update the class DBIO object data.
+        DBIO.update_table('trip', imputed_nonproxy_trips_df, step_name = 'impute_nonproxy')
+
+    def impute_school_trips(self) -> None:
+        """
+        1) Impute all non-proxy joint trips and update DB object.
+        This was written as a standalone class so it can be run independently of this imputation class, but able to be iherited easily.
+        """        
+        
+        assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
+        
+        kwargs = {
+            'households_df': DBIO.get_table('household'),
+            'persons_df': DBIO.get_table('person'),
+            'trips_df': DBIO.get_table('trip')[:100],
+            **settings.JOINT_TRIP_BUFFER
+            }
+        
+        imputed_nonproxy_trips_df = super(Imputation, self).impute_school_trips(**kwargs)
+        
+        # Update the class DBIO object data.
+        DBIO.update_table('trip', imputed_nonproxy_trips_df, step_name = 'impute_nonproxy')
 
 
     

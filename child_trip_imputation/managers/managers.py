@@ -31,7 +31,7 @@ class ManagerClass:
         self.DBIO = DBIO
         
             
-    def get_related(self, related: str, on = None) -> None:
+    def get_related(self, related: str, on: str|list|None = None) -> pd.DataFrame:
         """
         Fetches related data from the class manager data
 
@@ -42,22 +42,25 @@ class ManagerClass:
         Returns:
             pd.DataFrame: related data table
         """
-        related_df = self.DBIO.get_table(related)
+        df = self.DBIO.get_table(related)
         
-        assert self.data.index.name in related_df.columns, 'Class manager related data must have a common index with data'            
-        assert isinstance(related_df, pd.DataFrame), 'Class manager related data must be a pandas dataframe'
+        assert self.data.index.name in df.columns, 'Class manager related data must have a common index with data'            
+        assert isinstance(df, pd.DataFrame), 'Class manager related data must be a pandas dataframe'
         assert isinstance(on, str|list) or on is None, 'Class manager related data on must be a string or None'
 
         if on is None:
-            on = self.data.index.name
+            on_cols = self.data.index.name
             on_vals = self.data.index
-            related_df = related_df[related_df[on].isin(on_vals)]            
+            related_df = df[df[on_cols].isin(on_vals)]            
             
-        else:
+        else:            
+            on = on if isinstance(on, list) else [on]
+            assert all(isinstance(s, str) for s in on), 'Class manager related data on must be a list of strings'                
+            
             on_vals = self.data[on]
-            related_df = related_df.merge(on_vals, on=on)
-                    
-        return related_df
+            related_df = pd.merge(df.reset_index(), on_vals, on=on).set_index(df.index.name)            
+            
+        return related_df 
         
 
 class HouseholdManagerClass(ManagerClass):

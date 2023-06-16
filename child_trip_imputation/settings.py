@@ -10,7 +10,7 @@ import yaml
 from dotenv import dotenv_values
 
 # Load .env variables into proto namespace dictionary along with the settings.yaml
-with open('settings.yaml', 'r') as file:
+with open('settings.yaml', 'r') as file:    
     SETTINGS = {**yaml.safe_load(file), **dotenv_values(".env")}
 
 # Assign any variables in the settings to the environment namespace
@@ -21,7 +21,10 @@ for k, v in SETTINGS.items():
 Passing settings into global namespace, you can set defaults here.
 I am declaring the variables explicitly here for type checking despite being assigned dynamically above
 """
+STEPS = SETTINGS.get('STEPS')
 PG_HOST = SETTINGS.get('PG_HOST', 'pops.rsginc.com') # Set defaults like this
+DB_SYS = SETTINGS.get('DB_SYS', 'postgresql')
+JOINT_TRIP_BUFFER = SETTINGS.get('JOINT_TRIP_BUFFER', {'DISTANCE': 1000, 'TIME': 15})
 STUDY_SCHEMA = SETTINGS.get('STUDY_SCHEMA')
 PG_DB = SETTINGS.get('PG_DB')
 PG_PORT = SETTINGS.get('PG_PORT')
@@ -31,6 +34,31 @@ TABLES = SETTINGS.get('TABLES')
 CACHE_DIR = SETTINGS.get('CACHE_DIR')
 OUTPUT_DIR = SETTINGS.get('OUTPUT_DIR')
 CODES = SETTINGS.get('CODES')
+RESUME_AFTER = SETTINGS.get('RESUME_AFTER')
+
+# Radius of the Earth in feet for Haversine distance calculation
+R = 3963.19 * 5280
+
+ # Column name defaults
+COLUMN_NAMES = {
+    'DAYNUM': 'day_num',
+    'PNUM': 'person_num',
+    'TRIPNUM': 'trip_num',
+    'OLAT': 'o_lat',
+    'OLON': 'o_lon',
+    'DLAT': 'd_lat',
+    'DLON': 'd_lon',
+    'OTIME': 'depart_time',
+    'DTIME': 'arrive_time',
+    'HHMEMBER': 'hh_member_',
+    'MODE': 'mode_type',
+    'TRAVELDATE': 'travel_date',
+    'DRIVER': 'driver',
+    }
+
+COLUMN_NAMES_UPDATE = SETTINGS.get('COLUMN_NAMES', {})
+assert isinstance(COLUMN_NAMES_UPDATE, dict)
+COLUMN_NAMES.update(**COLUMN_NAMES_UPDATE)
 
 
 # Assertions can come here

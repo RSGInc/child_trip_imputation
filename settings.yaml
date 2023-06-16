@@ -1,5 +1,6 @@
 # POPS settings
 STUDY_SCHEMA: 'spring_2022'
+DB_SYS: 'postgresql'
 PG_DB: "sandag_hts"
 PG_HOST: "pops.rsginc.com"
 PG_PORT: 5432
@@ -22,7 +23,13 @@ TABLES:
     name: w_value_labels 
     index: name
 
+STEPS:
+  - create_tours
+  - impute_nonproxy
+  - impute_school_trips
+
 # If commented out, data will not be stored locally
+RESUME_AFTER: True # It will resume using the last processed step
 CACHE_DIR: 'cache'
 # OUTPUT_DIR: 'output'
 
@@ -48,4 +55,16 @@ CODES:
       o_purpose: 1
     DESTINATION:
       d_purpose: 1
+
+JOINT_TRIP_BUFFER:
+  DISTANCE: 1000 # Miles
+  TIME: 15 # Minutes
+
+# In case there are non-default column names
+# COLUMN_NAMES:
+#   DAYNUM: day_num
+#   OLAT: o_lat
+#   OLON: o_lon
+#   DLAT: d_lat
+#   DLON: d_lon
 

@@ -1,11 +1,11 @@
 import os
 import pandas as pd
 import pandera as pa
-import psycopg2 as pg
-from psycopg2.extensions import connection
+import sqlalchemy
+from datetime import datetime
+
+from utils.trips_to_tours import bulk_trip_to_tours
 import settings
-from methods.trips_to_tours import bulk_trip_to_tours
-from settings import get_index_name
 
 class IO:
     """
@@ -22,6 +22,18 @@ class IO:
             
         if settings.OUTPUT_DIR and not os.path.isdir(settings.OUTPUT_DIR):
             os.makedirs(settings.OUTPUT_DIR)
+        
+        # Initialize log either way. If cache dir is not set, log will not be saved.
+        self.log = pd.DataFrame(columns=['step', 'step_name', 'table', 'cached_table', 'timestamp'])
+            
+        if settings.CACHE_DIR and settings.RESUME_AFTER:
+            log_path = os.path.join(settings.CACHE_DIR, 'log.csv')
+            
+            if os.path.isfile(log_path):            
+                self.log = pd.read_csv(log_path)
+            else:
+                self.log.to_csv(log_path)
+            
             
     def list_tables(self):
         assert isinstance(settings.TABLES, dict)        
@@ -46,31 +58,28 @@ class IO:
         
         return indices_df
 
-    def update_table(self, table, df):
+    def update_table(self, table, df, step_name=None):
         setattr(self, table, df)
-        return
+        
+        # Save state
+        if settings.CACHE_DIR and step_name:            
+            # Update log
+            self.log[step_name]
+            
+            # Save log and cache
+            cache_path = os.path.join(settings.CACHE_DIR, f'{step_name}_{table}.parquet')
+            log_path = os.path.join(settings.CACHE_DIR, 'log.csv')
+
+            self.log.loc[len(self.log)] = [step_name, table, cache_path, datetime.now()]
+            
+            
+            self.log.to_csv(log_path, index=False)
+            df.to_parquet(cache_path)
+        
+        return    
     
     
     def get_table(self, table):
-        if table == 'tour':
-            trips_df = self.get_table('trip')
-            
-            # Bulk create tour IDs per person so they can be determined as joint tours later
-            trips_df = bulk_trip_to_tours(trips_df)            
-            cols = [str(get_index_name(x)) for x in ['day', 'household', 'person']]
-                     
-            assert isinstance(trips_df, pd.DataFrame)
-                
-            tours_df = trips_df.groupby('tour_id').first()
-            
-            assert cols in tours_df.columns, f'Columns {cols} not in tours_df'           
-            
-            return tours_df[cols] 
-            
-        else:
-            return self.get_existing_table(table)
-    
-    def get_existing_table(self, table):
         """
         Returns pandas DataFrame table for the requested table. 
         Checks first if already loaded, then checks cached data, then fetches from POPS.
@@ -79,6 +88,9 @@ class IO:
             table (str): Canonical table name (e.g., households) 
             mapped to POPS table name (e.g., w_rm_hh) in settings.yaml
         """
+        assert isinstance(settings.TABLES, dict), 'TABLES must be a dictionary of canonical table names and POPS name'
+        assert table in settings.TABLES.keys() or hasattr(self, table), f'{table} not in settings.TABLES or loaded in IO object'
+                
         
         if not hasattr(self, table):       
             
@@ -91,18 +103,17 @@ class IO:
 
             # Else, fetch from POPS
             else:
-                print(f'Fetch {table_name} from POPS')
-                conn = pg.connect(
-                    database=settings.PG_DB,
-                    user=settings.PG_USER,
-                    password=settings.PG_PWD,
-                    host=settings.PG_HOST,
-                    port=settings.PG_PORT,
-                    keepalives_idle=600
-                )
-  
-                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", con=conn)
-                conn.close()
+                print(f'Fetch {table_name} from POPS')                
+                dbsys = settings.DB_SYS
+                database=settings.PG_DB
+                username=settings.PG_USER
+                password=settings.PG_PWD
+                hostname=settings.PG_HOST
+                port=settings.PG_PORT
+                
+                conn_string = f"{dbsys}://{username}:{password}@{hostname}:{port}/{database}"                
+                engine = sqlalchemy.create_engine(conn_string)
+                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", con=engine)
                 
                 if table_index:
                     df.set_index(table_index, inplace=True)
@@ -144,8 +155,7 @@ class IO:
         table_index = table_item.get('index')
         
         # Where to store cached data as parquet
-        cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')
-            
+        cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')            
         
         return table_name, table_index, cache_path
     
