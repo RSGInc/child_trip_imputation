@@ -3,39 +3,19 @@ import pandas as pd
 import settings
 from managers.managers import DayManagerClass
 
-def is_missing_school_trip(Day: DayManagerClass, person_day_trips: pd.DataFrame) -> bool:
-    
-    """
-    Checks if the trips for the person on that day are missing any school trips.
-    
-    Args:
-        Day (DayManagerClass): the initialized Day class
-        person_day_trips: DataFrame trips table.
 
-    Returns: boolean True/False
+def joint_trip_id(row: pd.Series) -> int:
     """
-        
-    assert isinstance(settings.CODES, dict) 
-    CHILD_AGE_COL, CHILD_AGE_CODES = settings.get_codes('CHILD_AGE')
-    PRESCHOOL_AGE_COL, PRESCHOOL_AGE_CODES = settings.get_codes('PRESCHOOL_AGE')
-    PRESCHOOL_TYPE_COL, PRESCHOOL_TYPE_CODES = settings.get_codes('PRESCHOOL_TYPES')
-    SCHOOL_PURPOSES_COL, SCHOOL_PURPOSES_CODES = settings.get_codes('SCHOOL_PURPOSES')
-    
-    # Skip if person not proxy (is adult)        
-    if not Day.Person.data[CHILD_AGE_COL].isin(CHILD_AGE_CODES).iloc[0]:
-        return False
-            
-    # Skip if person is pre-school age and school_type is not preschool (does not attend preschool)
-    is_preschool_age = Day.Person.data[PRESCHOOL_AGE_COL].isin(PRESCHOOL_AGE_CODES).iloc[0]
-    is_in_preschool = Day.Person.data[PRESCHOOL_TYPE_COL].isin(PRESCHOOL_TYPE_CODES).iloc[0]
-    if is_preschool_age and not is_in_preschool:
-        return False
-    
-    # Skip if person (child) already has school destination
-    if person_day_trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES).any():
-        return False
-    
-    return True 
+    Local function to generate a joint trip ID by concatenating the household ID and the joint trip number.
+
+    Args:
+        row (pd.Series): The trips table row
+
+    Returns:
+        int: the joint trip ID
+    """
+    return int(f'{row.hh_id}{row[JOINT_TRIPNUM_COL]:02d}')
+
 
 # Generate a function that returns the disjoint set of a graph
 def disjoint_set(edges: np.ndarray) -> dict:
@@ -50,7 +30,7 @@ def disjoint_set(edges: np.ndarray) -> dict:
     """
     
     parents = {}
-    for i, edge in enumerate(edges):
+    for i, edge in enumerate(edges, start=1):
         for x in edge:
             if x not in parents:
                 parents[x] = i
