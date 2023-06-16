@@ -8,9 +8,12 @@ from managers.managers import DayManagerClass
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
 
-JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
+TRIPNUM_COL = COLNAMES['TRIPNUM']
+HH_ID_NAME = COLNAMES['HH_ID_NAME']
+PER_ID_NAME = COLNAMES['PER_ID_NAME']
 
-def joint_trip_id(row: pd.Series) -> int:
+def cat_joint_trip_id(row: pd.Series) -> int:
     """
     Local function to generate a joint trip ID by concatenating the household ID and the joint trip number.
 
@@ -20,7 +23,25 @@ def joint_trip_id(row: pd.Series) -> int:
     Returns:
         int: the joint trip ID
     """
-    return int(f'{row.hh_id}{row[JOINT_TRIPNUM_COL]:02d}')
+    hh_id = row[HH_ID_NAME]
+    joint_trip_num = row[JOINT_TRIPNUM_COL]
+    
+    return int(f'{hh_id}{joint_trip_num:02d}')
+
+def cat_trip_id(row: pd.Series) -> int:
+    """
+    Local function to generate a trip ID by concatenating the person ID and the joint trip number.
+
+    Args:
+        row (pd.Series): The trips table row
+
+    Returns:
+        int: the joint trip ID
+    """
+    person_id = row[PER_ID_NAME]
+    trip_num = row[TRIPNUM_COL]
+    
+    return int(f'{person_id}{trip_num:03d}')
 
 
 # Generate a function that returns the disjoint set of a graph

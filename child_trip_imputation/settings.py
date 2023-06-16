@@ -17,63 +17,8 @@ with open('settings.yaml', 'r') as file:
 for k, v in SETTINGS.items():
     globals()[k] = v
 
-"""
-Passing settings into global namespace, you can set defaults here.
-I am declaring the variables explicitly here for type checking despite being assigned dynamically above
-"""
-STEPS = SETTINGS.get('STEPS')
-PG_HOST = SETTINGS.get('PG_HOST', 'pops.rsginc.com') # Set defaults like this
-DB_SYS = SETTINGS.get('DB_SYS', 'postgresql')
-JOINT_TRIP_BUFFER = SETTINGS.get('JOINT_TRIP_BUFFER', {'DISTANCE': 1000, 'TIME': 15})
-STUDY_SCHEMA = SETTINGS.get('STUDY_SCHEMA')
-PG_DB = SETTINGS.get('PG_DB')
-PG_PORT = SETTINGS.get('PG_PORT')
-PG_USER = SETTINGS.get('PG_USER')
-PG_PWD = SETTINGS.get('PG_PWD')
-TABLES = SETTINGS.get('TABLES')
-CACHE_DIR = SETTINGS.get('CACHE_DIR')
-OUTPUT_DIR = SETTINGS.get('OUTPUT_DIR')
-CODES = SETTINGS.get('CODES')
-RESUME_AFTER = SETTINGS.get('RESUME_AFTER')
 
-# Radius of the Earth in feet for Haversine distance calculation
-R = 3963.19 * 5280
-
- # Column name defaults
-COLUMN_NAMES = {
-    'DAYNUM': 'day_num',
-    'PNUM': 'person_num',
-    'TRIPNUM': 'trip_num',
-    'OLAT': 'o_lat',
-    'OLON': 'o_lon',
-    'DLAT': 'd_lat',
-    'DLON': 'd_lon',
-    'OTIME': 'depart_time',
-    'DTIME': 'arrive_time',
-    'HHMEMBER': 'hh_member_',
-    'MODE': 'mode_type',
-    'TRAVELDATE': 'travel_date',
-    'DRIVER': 'driver',
-    'JOINT_TRIP_ID_NAME': 'joint_trip_id',
-    'JOINT_TRIPNUM_COL': 'joint_trip_num'
-    }
-
-COLUMN_NAMES_UPDATE = SETTINGS.get('COLUMN_NAMES', {})
-assert isinstance(COLUMN_NAMES_UPDATE, dict)
-COLUMN_NAMES.update(**COLUMN_NAMES_UPDATE)
-
-
-# Assertions can come here
-assert isinstance(TABLES, dict)
-for table in ['household', 'person', 'day', 'codebook']:
-    assert table in TABLES.keys(), f'{table} must be defined in settings.yaml!'
-
-
-
-"""
-Functions for accessing settings.yaml and .env variables
-"""
-
+# Functions for accessing settings.yaml and .env variables
 def get_index_name(table_name: str):
     """
     Asserts and returns the index name for the requested table
@@ -134,3 +79,61 @@ def get_codes(code_name: str | tuple) -> tuple:
     codes = codes if isinstance(codes, list) else [codes]
     
     return (col, codes)
+
+
+"""
+Passing settings into global namespace, you can set defaults here.
+I am declaring the variables explicitly here for type checking despite being assigned dynamically above
+"""
+STEPS = SETTINGS.get('STEPS')
+PG_HOST = SETTINGS.get('PG_HOST', 'pops.rsginc.com') # Set defaults like this
+DB_SYS = SETTINGS.get('DB_SYS', 'postgresql')
+JOINT_TRIP_BUFFER = SETTINGS.get('JOINT_TRIP_BUFFER', {'DISTANCE': 1000, 'TIME': 15})
+STUDY_SCHEMA = SETTINGS.get('STUDY_SCHEMA')
+PG_DB = SETTINGS.get('PG_DB')
+PG_PORT = SETTINGS.get('PG_PORT')
+PG_USER = SETTINGS.get('PG_USER')
+PG_PWD = SETTINGS.get('PG_PWD')
+TABLES = SETTINGS.get('TABLES')
+CACHE_DIR = SETTINGS.get('CACHE_DIR')
+OUTPUT_DIR = SETTINGS.get('OUTPUT_DIR')
+CODES = SETTINGS.get('CODES')
+RESUME_AFTER = SETTINGS.get('RESUME_AFTER')
+
+# Radius of the Earth in feet for Haversine distance calculation
+R = 3963.19 * 5280
+
+ # Column name defaults
+COLUMN_NAMES = {
+    'PER_ID_NAME': get_index_name('person'),
+    'TRIP_ID_NAME': get_index_name('trip'),
+    'HH_ID_NAME': get_index_name('household'),
+    'DAY_ID_NAME': get_index_name('day'),
+    'DAYNUM': 'day_num',
+    'PNUM': 'person_num',
+    'TRIPNUM': 'trip_num',
+    'OLAT': 'o_lat',
+    'OLON': 'o_lon',
+    'DLAT': 'd_lat',
+    'DLON': 'd_lon',
+    'OTIME': 'depart_time',
+    'DTIME': 'arrive_time',
+    'HHMEMBER': 'hh_member_',
+    'MODE': 'mode_type',
+    'TRAVELDATE': 'travel_date',
+    'DRIVER': 'driver',
+    'JOINT_TRIP_ID_NAME': 'joint_trip_id',
+    'JOINT_TRIPNUM': 'joint_trip_num'
+    }
+
+COLUMN_NAMES_UPDATE = SETTINGS.get('COLUMN_NAMES', {})
+assert isinstance(COLUMN_NAMES_UPDATE, dict)
+COLUMN_NAMES.update(**COLUMN_NAMES_UPDATE)
+
+
+# Assertions can come here
+assert isinstance(TABLES, dict)
+for table in ['household', 'person', 'day', 'codebook']:
+    assert table in TABLES.keys(), f'{table} must be defined in settings.yaml!'
+
+

@@ -111,8 +111,9 @@ class IO:
                 if not os.path.isfile(cache_path):
                     self.cache_log.drop(step, inplace=True)
                     assert isinstance(settings.CACHE_DIR, str), 'settings.CACHE_DIR must be a string'
-                    self.cache_log.to_csv(os.path.join(settings.CACHE_DIR, 'log.csv'), index=True)                    
-                    assert False, f'Cached file {cache_path} not found. Log has been altered, please re-run the step.'
+                    self.cache_log.to_csv(os.path.join(settings.CACHE_DIR, 'log.csv'), index=True)
+                    Warning(f'Cached file {cache_path} not found. Log has been altered, please re-run the step.')
+                    exit(1)
                 
             else:
                 table_name, table_index, cache_path = self.validate_table_request(table)

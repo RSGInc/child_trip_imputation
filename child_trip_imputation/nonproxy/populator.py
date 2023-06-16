@@ -1,21 +1,25 @@
 import re
 import pandas as pd
 import numpy as np
+
+# Local imports
 import settings
+from utils.misc import cat_joint_trip_id, cat_trip_id
 
 
 # Extract column names for origin and destination lat/lon
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
-PER_ID_NAME = settings.get_index_name('person')
-TRIP_ID_NAME = settings.get_index_name('trip')
-HH_ID_NAME = settings.get_index_name('household')
+
+PER_ID_NAME = COLNAMES['PER_ID_NAME']
+TRIP_ID_NAME = COLNAMES['TRIP_ID_NAME']
+HH_ID_NAME = COLNAMES['HH_ID_NAME']
 DAYNUM_COL = COLNAMES['DAYNUM']
 TRIPNUM_COL = COLNAMES['TRIPNUM']
 TRAVELDATE_COL = COLNAMES['TRAVELDATE']
 DRIVER_COL = COLNAMES['DRIVER']
 JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
-JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 
 class NonProxyTripPopulator:
     """
@@ -34,7 +38,7 @@ class NonProxyTripPopulator:
         joint_trip_grp = trips_df.reset_index().groupby([HH_ID_NAME])    
             
         self.trip_counter = trip_grp.aggregate({TRIPNUM_COL: 'max', TRIP_ID_NAME: 'max'})
-        self.joint_trip_counter = joint_trip_grp.aggregate({JOINT_TRIPNUM_COL: 'max', JOINT_TRIP_ID_NAME: 'max'})  
+        self.joint_trip_counter = joint_trip_grp.aggregate({JOINT_TRIPNUM_COL: 'max', JOINT_TRIP_ID_NAME: 'max'})
 
     def populate(self, host_trip: pd.DataFrame, member_id: int|str, member_num: int|str) -> pd.DataFrame:         
         
@@ -57,16 +61,16 @@ class NonProxyTripPopulator:
         # Update the new trip with the values
         new_trip.update(values)        
                     
-        # Update the trip id
-        
+        # Update the trip id        
         # Simply concatenating the ID is problematic because the trip number is inconsistent with trip_num
-        # new_trip_id = int(f'{new_trip[PER_ID_NAME]}{new_trip[TRIPNUM_COL]:03d}')
-        # new_trip['joint_trip_id'] = int(f'{new_trip.hh_id}{new_trip.joint_trip_num:02d}')
-        
-        self.trips_df[PER_ID_NAME] == new_trip[PER_ID_NAME]
-        
+        # Need to pull the new trip_id from the trip_counter and joint_trip_counter
+        new_trip_id = self.trip_counter.loc[member_id, TRIP_ID_NAME]
+        new_joint_trip_id = self.joint_trip_counter.loc[new_trip[HH_ID_NAME], JOINT_TRIP_ID_NAME]
         
         assert new_trip_id not in self.trips_df.index, f'Trip id {new_trip_id} already exists'
+        assert new_joint_trip_id not in self.trips_df[JOINT_TRIP_ID_NAME], f'Joint trip id {new_joint_trip_id} already exists'
+        
+        new_trip[JOINT_TRIP_ID_NAME] = new_joint_trip_id
         new_trip.name = new_trip_id
         
         return new_trip
@@ -104,50 +108,7 @@ class NonProxyTripPopulator:
         else: 
             return None
     
-    def iterate_day_counter(self, num_item: str, item_id: int|str, host_daynum: int|str) -> int:        
-        """
-        Find the current max trip number per day and iterate.
-        This function is not currently used.
-        Currently, trip number is not counted per day only per person.
-        
-        Args:
-            num_item (str): ['joint_trip', 'trip'] The name of the trip number column to iterate
-            item_id (int|str): The household id for the joint_trip_counter or the household member person id
-            host_daynum (int|str): The host trip day number
-
-        Returns:
-            int: The new trip number
-        """
-        
-        assert num_item in ['joint_trip', 'trip'], f'num_item must be one of {["joint_trip", "trip"]}'
-        
-        if num_item == 'joint_trip':
-            assert len(str(item_id)) == 8, 'joint trip household id must be 10 digits, is this the wrong id?'
-            index_name = 'joint_trip_id'
-        else:
-            assert len(str(item_id)) == 10, 'trip person id must be 10 digits, is this the wrong id?'
-            index_name = TRIP_ID_NAME
-
-        # Retrieve the trip counter        
-        counter_df = getattr(self, num_item + '_counter')
-        
-        # Initialize the counter if it doesn't exist
-        if (item_id, host_daynum) not in counter_df.index:
-            newindex = pd.MultiIndex.from_tuples([(item_id, host_daynum)], names=[index_name, DAYNUM_COL])
-            newindex = counter_df.index.append(newindex)
-            counter_df = counter_df.reindex(newindex, fill_value=0)
-            
-        # Iterate
-        num = counter_df.loc[(item_id, host_daynum)]
-        num = 1 if (np.isnan(num) or num == 995 or num < 0) else num + 1
-        counter_df.loc[(item_id, host_daynum)] = num
-        
-        # Return the new trip number
-        setattr(self, num_item, counter_df)
-                                  
-        return num
-    
-    def iterate_counter(self, num_item: str, item_id: int|str) -> int:        
+    def iterate_counter(self, counter_name: str, counter_id: int|str) -> int:        
         """
         Find the current max trip number and iterate.
         
@@ -159,33 +120,51 @@ class NonProxyTripPopulator:
             int: The new trip number
         """
         
-        assert num_item in ['joint_trip', 'trip'], f'num_item must be one of {["joint_trip", "trip"]}'
+        assert counter_name in ['joint_trip', 'trip'], f'num_item must be one of {["joint_trip", "trip"]}'
         
-        if num_item == 'joint_trip':
-            assert len(str(item_id)) == 8, 'joint trip household id must be 10 digits, is this the wrong id?'
-            index_name = 'joint_trip_id'
+        if counter_name == 'joint_trip':
+            assert len(str(counter_id)) == 8, 'joint trip household id must be 10 digits, is this the wrong id?'
+            id_method = cat_joint_trip_id
         else:
-            assert len(str(item_id)) == 10, 'trip person id must be 10 digits, is this the wrong id?'
-            index_name = TRIP_ID_NAME
+            assert len(str(counter_id)) == 10, 'trip person id must be 10 digits, is this the wrong id?'
+            id_method = cat_trip_id
+
+        # Dictionary of the column names
+        params = {
+            'trip': [TRIP_ID_NAME, TRIPNUM_COL],
+            'joint_trip': [JOINT_TRIP_ID_NAME, JOINT_TRIPNUM_COL]
+            }        
+        counter_index_name, counter_num_col = params[counter_name]
                 
         # Retrieve the trip counter        
-        counter_df = getattr(self, num_item + '_counter')
-        
+        counter_df = getattr(self, counter_name + '_counter')
+                
         # Initialize the counter if it doesn't exist
-        if item_id not in counter_df.index:
-            newindex = pd.Index([item_id], name=index_name)
+        if counter_id not in counter_df.index:
+            newindex = pd.Index([counter_id], name=counter_df.index.name)
             newindex = counter_df.index.append(newindex)
-            counter_df = counter_df.reindex(newindex, fill_value=0)
+            counter_df = counter_df.reindex(newindex, fill_value=995)            
             
         # Iterate
-        num = counter_df.loc[item_id]
-        num = 1 if (np.isnan(num) or num == 995 or num < 0) else num + 1
-        counter_df.loc[item_id] = num
+        counter_num_id, count = counter_df.loc[counter_id, [counter_index_name, counter_num_col]]
         
+        # If count is NAN or 995, then it is a new trip and set to 1
+        count = 1 if (np.isnan(count) or count == 995 or count < 0) else count + 1
+        
+        # If counter_num_id is NAN or 995, then it is a new trip and needs to be generated
+        if (np.isnan(counter_num_id) or counter_num_id == 995 or counter_num_id < 0): 
+            row = pd.Series([counter_id, count], index=[counter_df.index.name, counter_num_col])
+            counter_num_id = id_method(row)
+        else:
+            counter_num_id += 1
+        
+        # Update the count
+        counter_df.loc[counter_id] = count, counter_num_id        
+                
         # Return the new trip number
-        setattr(self, num_item, counter_df)
+        setattr(self, counter_name + '_counter', counter_df)
                                   
-        return num
+        return count
         
     def copy_from_host(self, **kwargs):
         """

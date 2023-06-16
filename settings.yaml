@@ -28,7 +28,7 @@ STEPS:
   - create_tours
   - flag_unreported_joint_trips
   - impute_reported_joint_trips
-  - impute_school_trips
+  # - impute_school_trips
 
 # If commented out, data will not be stored locally
 RESUME_AFTER: True # It will resume using the last processed step

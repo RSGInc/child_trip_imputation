@@ -5,7 +5,7 @@ from datetime import timedelta
 
 # Internal imports
 import settings
-from utils.misc import joint_trip_id
+from utils.misc import cat_joint_trip_id
 from nonproxy.populator import NonProxyTripPopulator
 from nonproxy.timespace_buffer import fix_existing_joint_trips
 
@@ -14,15 +14,16 @@ from nonproxy.timespace_buffer import fix_existing_joint_trips
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
 
-PER_ID_NAME = settings.get_index_name('person')
-TRIP_ID_NAME = settings.get_index_name('trip')
-HH_ID_NAME = settings.get_index_name('household')
-DAY_ID_NAME = settings.get_index_name('day')
 HHMEMBER_PREFIX = COLNAMES['HHMEMBER']
 DAYNUM_COL = COLNAMES['DAYNUM']
 PNUM_COL = COLNAMES['PNUM']
 JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
-JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
+PER_ID_NAME = COLNAMES['PER_ID_NAME']
+TRIP_ID_NAME = COLNAMES['TRIP_ID_NAME']
+HH_ID_NAME = COLNAMES['HH_ID_NAME']
+DAY_ID_NAME = COLNAMES['DAY_ID_NAME']
+
 
 class ImputeNonProxyTrips:
     def joint_trip_member_table(self, persons_df: pd.DataFrame, trips_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -98,6 +99,7 @@ class ImputeNonProxyTrips:
 
         # Initialize empty joint_trip_num column
         trips_df[JOINT_TRIPNUM_COL] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIP_ID_NAME)
+        trips_df[JOINT_TRIP_ID_NAME] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIP_ID_NAME)
         
         # 1. For each member-trip check if that person already has a trip but just wasn't reported as a joint trip member
         fixed_trips_df = fix_existing_joint_trips(trips_df, distance_threshold, time_threshold)
