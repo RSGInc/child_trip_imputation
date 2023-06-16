@@ -1,10 +1,10 @@
 import os
 import pandas as pd
 import pandera as pa
+import numpy as np
 import sqlalchemy
 from datetime import datetime
 
-from utils.trips_to_tours import bulk_trip_to_tours
 import settings
 
 class IO:
@@ -23,16 +23,19 @@ class IO:
         if settings.OUTPUT_DIR and not os.path.isdir(settings.OUTPUT_DIR):
             os.makedirs(settings.OUTPUT_DIR)
         
-        # Initialize log either way. If cache dir is not set, log will not be saved.
-        self.log = pd.DataFrame(columns=['step', 'step_name', 'table', 'cached_table', 'timestamp'])
-            
+        # Initialize log either way. If cache dir is not set, log will not be saved.        
+        dtypes = np.dtype([('index', str), ("table", str), ('timestamp', datetime), ("cached_table", str)])
+        index = pd.Index([], name='step_name', dtype=str)
+        self.cache_log = pd.DataFrame(np.empty(0, dtype=dtypes), index=index)
+        
+        # TODO setup a caching system that can be used to resume from a previous step
         if settings.CACHE_DIR and settings.RESUME_AFTER:
             log_path = os.path.join(settings.CACHE_DIR, 'log.csv')
             
             if os.path.isfile(log_path):            
-                self.log = pd.read_csv(log_path)
+                self.cache_log = pd.read_csv(log_path, parse_dates=['timestamp']).set_index('step_name')
             else:
-                self.log.to_csv(log_path)
+                self.cache_log.to_csv(log_path)
             
             
     def list_tables(self):
@@ -58,28 +61,31 @@ class IO:
         
         return indices_df
 
-    def update_table(self, table, df, step_name=None):
+    def update_table(self, table: str, df: pd.DataFrame, step_name: str|None = None) -> None:
+        """
+        This method updates the table in the IO object and saves it to cache if cache dir is set.
+
+        Args:
+            table (str): The canonical table name (e.g., households) mapped to POPS table name.
+            df (pd.DataFrame): The pandas DataFrame to be saved.
+            step_name (str|None, optional): The name of the step that generated the table. Defaults to None.
+        """
         setattr(self, table, df)
         
-        # Save state
+        # Save current state to cache if cache dir is set
         if settings.CACHE_DIR and step_name:            
-            # Update log
-            self.log[step_name]
-            
             # Save log and cache
-            cache_path = os.path.join(settings.CACHE_DIR, f'{step_name}_{table}.parquet')
+            cache_path = os.path.join(settings.CACHE_DIR, f'{table}_({step_name}).parquet')
             log_path = os.path.join(settings.CACHE_DIR, 'log.csv')
-
-            self.log.loc[len(self.log)] = [step_name, table, cache_path, datetime.now()]
             
-            
-            self.log.to_csv(log_path, index=False)
+            # Store the new table in cache and update log
             df.to_parquet(cache_path)
+            self.cache_log.loc[step_name] = [df.index.name, table, datetime.now(), cache_path]            
+            self.cache_log.to_csv(log_path, index=True)            
         
         return    
-    
-    
-    def get_table(self, table):
+        
+    def get_table(self, table, step: str|None = None):
         """
         Returns pandas DataFrame table for the requested table. 
         Checks first if already loaded, then checks cached data, then fetches from POPS.
@@ -89,12 +95,27 @@ class IO:
             mapped to POPS table name (e.g., w_rm_hh) in settings.yaml
         """
         assert isinstance(settings.TABLES, dict), 'TABLES must be a dictionary of canonical table names and POPS name'
-        assert table in settings.TABLES.keys() or hasattr(self, table), f'{table} not in settings.TABLES or loaded in IO object'
-                
         
-        if not hasattr(self, table):       
+        # Check if table exists in settings, IO object, or cache log otherwise it's not a real table.
+        table_exists = table in settings.TABLES.keys() or hasattr(self, table) or table in self.cache_log.table_name.to_list()
+        assert table_exists, f'{table} not in settings.TABLES, loaded in IO object, or in cache log.'        
+        
+        if not hasattr(self, table):
             
-            table_name, table_index, cache_path = self.validate_table_request(table)          
+            # If cache path is specified, use that
+            if step:
+                cached = self.cache_log.loc[step]                
+                table_index, table_name, cache_path = cached[['index_name', 'table_name', 'cached_table']].to_list()
+                
+                # If the cached file was removed, delete the log entry and try again
+                if not os.path.isfile(cache_path):
+                    self.cache_log.drop(step, inplace=True)
+                    assert isinstance(settings.CACHE_DIR, str), 'settings.CACHE_DIR must be a string'
+                    self.cache_log.to_csv(os.path.join(settings.CACHE_DIR, 'log.csv'), index=True)                    
+                    assert False, f'Cached file {cache_path} not found. Log has been altered, please re-run the step.'
+                
+            else:
+                table_name, table_index, cache_path = self.validate_table_request(table)
             
             # Read cached file if available
             if os.path.isfile(cache_path):
@@ -136,7 +157,16 @@ class IO:
             
         return df
     
-    def validate_table_request(self, table):
+    def validate_table_request(self, table: str) -> tuple:
+        """
+        This method validates the table request and returns the table name, index, and cache path.
+
+        Args:
+            table (str): the canonical table name
+
+        Returns:
+            tuple(str, str, str): the table name, index, and cache path
+        """
         
         # Validate parameters            
         assert isinstance(settings.CACHE_DIR, str), 'CACHE_DIR must be a string path'
@@ -155,7 +185,7 @@ class IO:
         table_index = table_item.get('index')
         
         # Where to store cached data as parquet
-        cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')            
+        cache_path = os.path.join(settings.CACHE_DIR, f'{table_name}.parquet')
         
         return table_name, table_index, cache_path
     

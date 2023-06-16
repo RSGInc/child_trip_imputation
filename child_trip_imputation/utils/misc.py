@@ -3,6 +3,12 @@ import pandas as pd
 import settings
 from managers.managers import DayManagerClass
 
+# Constants
+# Extract column names for origin and destination lat/lon
+assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
+COLNAMES = settings.COLUMN_NAMES
+
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
 
 def joint_trip_id(row: pd.Series) -> int:
     """
