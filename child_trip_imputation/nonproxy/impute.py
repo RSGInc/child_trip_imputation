@@ -5,6 +5,7 @@ from datetime import timedelta
 
 # Internal imports
 import settings
+from utils.misc import joint_trip_id
 from nonproxy.populator import NonProxyTripPopulator
 from nonproxy.timespace_buffer import fix_existing_joint_trips
 
@@ -20,11 +21,8 @@ DAY_ID_NAME = settings.get_index_name('day')
 HHMEMBER_PREFIX = COLNAMES['HHMEMBER']
 DAYNUM_COL = COLNAMES['DAYNUM']
 PNUM_COL = COLNAMES['PNUM']
-
-assert isinstance(PER_ID_NAME, str), 'PER_ID_NAME not a string'
-assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
-assert isinstance(HH_ID_NAME, str), 'HH_ID_NAME not a string'
-
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
 
 class ImputeNonProxyTrips:
     def joint_trip_member_table(self, persons_df: pd.DataFrame, trips_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -46,7 +44,7 @@ class ImputeNonProxyTrips:
             
         # Create member-trip table, replace any values > 1 with 0 (i.e., 995 missing values)    
         idx_cols = [settings.get_index_name(x) for x in ['person', 'household', 'day', 'trip']]
-        idx_cols += ['joint_trip_num', DAYNUM_COL]
+        idx_cols += [JOINT_TRIPNUM_COL, DAYNUM_COL]
         
         trips = trips_df.reset_index().set_index(idx_cols)
         trips = trips.filter(regex=HHMEMBER_PREFIX).clip(0, 2).replace(2, 0)
@@ -61,6 +59,8 @@ class ImputeNonProxyTrips:
         print(f"Joint trips to impute: {deficit_n_trips}")  
             
         # Drop non-joint trips
+        assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
+
         member_count = trips.sum(axis=1)
         nonjoint_trip_ids = trips.loc[member_count == 1].index.get_level_values(TRIP_ID_NAME)    
         joint_trip_ids = trips.loc[member_count > 1].index.get_level_values(TRIP_ID_NAME)   
@@ -90,21 +90,28 @@ class ImputeNonProxyTrips:
         joint_trips = trips[trips.trip_id.isin(joint_trip_ids)]
         
         return joint_trips, nonjoint_trips
-
-    def impute_nonproxy(self, persons_df, trips_df, **kwargs):    
-            
+    
+    def flag_unreported_joint_trips(self, trips_df, **kwargs):
         # Default parameters
         distance_threshold = kwargs.get('DISTANCE', 0.5)
         time_threshold = timedelta(minutes=kwargs.get('TIME', 30))
 
-        # Create joint_trip_num column
-        trips_df['joint_trip_num'] = pd.Series(0, index=trips_df.index, name='joint_trip_num')
+        # Initialize empty joint_trip_num column
+        trips_df[JOINT_TRIPNUM_COL] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIP_ID_NAME)
         
         # 1. For each member-trip check if that person already has a trip but just wasn't reported as a joint trip member
         fixed_trips_df = fix_existing_joint_trips(trips_df, distance_threshold, time_threshold)
+        
+        # Update the joint trip id
+        is_joint = fixed_trips_df[JOINT_TRIPNUM_COL] != 995        
+        fixed_trips_df.loc[is_joint, JOINT_TRIP_ID_NAME] = fixed_trips_df.loc[is_joint].apply(joint_trip_id, axis=1)  
+        
+        return fixed_trips_df
+    
+    def impute_reported_joint_trips(self, persons_df, trips_df):       
             
         # 2. Flatten and separate trip table into joint and non-joint trips
-        joint_trips, nonjoint_trips = self.joint_trip_member_table(persons_df, fixed_trips_df)    
+        joint_trips, nonjoint_trips = self.joint_trip_member_table(persons_df, trips_df)    
         
         # 4. Impute new joint-trips from reported but non-existent joint trips
         """
@@ -118,6 +125,7 @@ class ImputeNonProxyTrips:
             ]
 
         # Trim and sort index for performance
+        assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
         unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=['joint_trip_num', DAY_ID_NAME]).sort_values(TRIP_ID_NAME)
         
         # Initialize trip populator class to hold the data and manage trip counts
@@ -132,8 +140,8 @@ class ImputeNonProxyTrips:
             host_trip_id, host_hh_id, host_daynum = host_idx
             
             # Get host trip and update the joint trip number
-            host_trip = fixed_trips_df.loc[host_trip_id].copy()        
-            host_trip['joint_trip_num'] = Populator.iterate_counter('joint_trip', host_hh_id, host_daynum)
+            host_trip = trips_df.loc[host_trip_id].copy()        
+            host_trip['joint_trip_num'] = Populator.iterate_counter('joint_trip', host_hh_id)
             
             for i, hh_member_id, hh_member_num in members[['hh_member_id', 'hh_member_num']].itertuples():
                 # Populate new trip            
@@ -143,9 +151,9 @@ class ImputeNonProxyTrips:
         new_trips_df = pd.concat(new_trips_ls, axis=1, ignore_index=False).T
         new_trips_df.index.name = TRIP_ID_NAME
         
-        assert len(set(new_trips_df.index).intersection(fixed_trips_df.index)) == 0, "New trips should not have the same index as existing trips"
+        assert len(set(new_trips_df.index).intersection(trips_df.index)) == 0, "New trips should not have the same index as existing trips"
         
-        combined_trips_df = pd.concat([fixed_trips_df, new_trips_df])
+        combined_trips_df = pd.concat([trips_df, new_trips_df])
         # combined_trips_df.loc[combined_trips_df.joint_trip_num == 0, 'joint_trip_num'] = 995
         
         return combined_trips_df

@@ -1,20 +1,21 @@
 import re
 import pandas as pd
 import numpy as np
-
 import settings
 
 
 # Extract column names for origin and destination lat/lon
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
-
 PER_ID_NAME = settings.get_index_name('person')
 TRIP_ID_NAME = settings.get_index_name('trip')
 HH_ID_NAME = settings.get_index_name('household')
 DAYNUM_COL = COLNAMES['DAYNUM']
+TRIPNUM_COL = COLNAMES['TRIPNUM']
 TRAVELDATE_COL = COLNAMES['TRAVELDATE']
 DRIVER_COL = COLNAMES['DRIVER']
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
 
 class NonProxyTripPopulator:
     """
@@ -28,8 +29,12 @@ class NonProxyTripPopulator:
         self.person_df = person_df
         
         # Trip counters
-        self.trip_counter = trips_df.groupby([PER_ID_NAME, DAYNUM_COL]).trip_num.max()
-        self.joint_trip_counter = trips_df.groupby([HH_ID_NAME, DAYNUM_COL]).joint_trip_num.max()        
+        # Keeps track of the latest trip number and trip ID for each person
+        trip_grp = trips_df.reset_index().groupby([PER_ID_NAME])
+        joint_trip_grp = trips_df.reset_index().groupby([HH_ID_NAME])    
+            
+        self.trip_counter = trip_grp.aggregate({TRIPNUM_COL: 'max', TRIP_ID_NAME: 'max'})
+        self.joint_trip_counter = joint_trip_grp.aggregate({JOINT_TRIPNUM_COL: 'max', JOINT_TRIP_ID_NAME: 'max'})  
 
     def populate(self, host_trip: pd.DataFrame, member_id: int|str, member_num: int|str) -> pd.DataFrame:         
         
@@ -37,36 +42,48 @@ class NonProxyTripPopulator:
         new_trip = host_trip.copy()
         
         # Reserved columns - meaning they are not checked for in the trip_column_actions.csv file
-        reserved_cols = ['joint_trip_num', 'joint_trip_id', 'tour_id', 'tour_num', 'tour_type']
+        reserved_cols = [JOINT_TRIPNUM_COL, JOINT_TRIP_ID_NAME, 'tour_id', 'tour_num', 'tour_type']
         
         missing = set(new_trip.index).difference(set(self.actions.colname.to_list() + reserved_cols))
         assert len(missing) == 0, f'Columns {missing} not in trip_column_actions.csv'        
 
-        # Loops through each column and applies the method to the host trip        
-        for i, colname, method in self.actions.itertuples():
-            # Local data to pass around
-            locals_dict = {'colname': colname, 'host_trip': host_trip, 'member_id': member_id, 'member_num': member_num}            
-            
-            # Check if the method has a direct set value argument
-            value = self.set_value(method)
-            
-            # otherwise call the method
-            if value is None:
-                assert hasattr(self, method), f'No method {method} found'
-                value = getattr(self, method)(**locals_dict)
-
-            # Defaults to None
-            new_trip[colname] = value
-            
+        locals_dict = {'host_trip': host_trip, 'member_id': member_id, 'member_num': member_num}            
+        
+        # Loops through each column and applies the method to the host trip
+        # Using dict comprehension because it is byte compiled and almost twice as fast as standard for loop
+        values = {colname: self.populate_column(colname, method, **locals_dict) for i, colname, method in self.actions.itertuples()}        
+        values = pd.Series(values)
+        
+        # Update the new trip with the values
+        new_trip.update(values)        
+                    
         # Update the trip id
-        new_trip_id = int(f'{new_trip.person_id}{new_trip.trip_num:03d}')
-        new_trip['joint_trip_id'] = int(f'{new_trip.hh_id}{new_trip.joint_trip_num:02d}')
+        
+        # Simply concatenating the ID is problematic because the trip number is inconsistent with trip_num
+        # new_trip_id = int(f'{new_trip[PER_ID_NAME]}{new_trip[TRIPNUM_COL]:03d}')
+        # new_trip['joint_trip_id'] = int(f'{new_trip.hh_id}{new_trip.joint_trip_num:02d}')
+        
+        self.trips_df[PER_ID_NAME] == new_trip[PER_ID_NAME]
         
         
         assert new_trip_id not in self.trips_df.index, f'Trip id {new_trip_id} already exists'
         new_trip.name = new_trip_id
         
         return new_trip
+    
+    def populate_column(self, colname, method: str, **kwargs) -> str|int|float|None:
+        # Update locals dict
+        kwargs['colname'] = colname            
+        
+        # Check if the method has a direct set value argument
+        value = self.set_value(method)
+        
+        # otherwise call the method
+        if value is None:
+            assert hasattr(self, method), f'No method {method} found'
+            value = getattr(self, method)(**kwargs)
+            
+        return value
     
     def set_value(self, method: str) -> str|int|float|None:
         """
@@ -87,13 +104,15 @@ class NonProxyTripPopulator:
         else: 
             return None
     
-    def iterate_counter(self, num_item: str, item_id: int|str, host_daynum: int|str) -> int:        
+    def iterate_day_counter(self, num_item: str, item_id: int|str, host_daynum: int|str) -> int:        
         """
-        Find the current max trip number and iterate.
+        Find the current max trip number per day and iterate.
+        This function is not currently used.
+        Currently, trip number is not counted per day only per person.
         
         Args:
             num_item (str): ['joint_trip', 'trip'] The name of the trip number column to iterate
-            _id (int|str): The household id for the joint_trip_counter or the household member person id
+            item_id (int|str): The household id for the joint_trip_counter or the household member person id
             host_daynum (int|str): The host trip day number
 
         Returns:
@@ -104,15 +123,17 @@ class NonProxyTripPopulator:
         
         if num_item == 'joint_trip':
             assert len(str(item_id)) == 8, 'joint trip household id must be 10 digits, is this the wrong id?'
+            index_name = 'joint_trip_id'
         else:
             assert len(str(item_id)) == 10, 'trip person id must be 10 digits, is this the wrong id?'
-                
+            index_name = TRIP_ID_NAME
+
         # Retrieve the trip counter        
         counter_df = getattr(self, num_item + '_counter')
         
         # Initialize the counter if it doesn't exist
         if (item_id, host_daynum) not in counter_df.index:
-            newindex = pd.MultiIndex.from_tuples([(item_id, host_daynum)], names=[num_item + '_id', DAYNUM_COL])
+            newindex = pd.MultiIndex.from_tuples([(item_id, host_daynum)], names=[index_name, DAYNUM_COL])
             newindex = counter_df.index.append(newindex)
             counter_df = counter_df.reindex(newindex, fill_value=0)
             
@@ -126,6 +147,46 @@ class NonProxyTripPopulator:
                                   
         return num
     
+    def iterate_counter(self, num_item: str, item_id: int|str) -> int:        
+        """
+        Find the current max trip number and iterate.
+        
+        Args:
+            num_item (str): ['joint_trip', 'trip'] The name of the trip number column to iterate
+            item_id (int|str): The household id for the joint_trip_counter or the household member person id
+
+        Returns:
+            int: The new trip number
+        """
+        
+        assert num_item in ['joint_trip', 'trip'], f'num_item must be one of {["joint_trip", "trip"]}'
+        
+        if num_item == 'joint_trip':
+            assert len(str(item_id)) == 8, 'joint trip household id must be 10 digits, is this the wrong id?'
+            index_name = 'joint_trip_id'
+        else:
+            assert len(str(item_id)) == 10, 'trip person id must be 10 digits, is this the wrong id?'
+            index_name = TRIP_ID_NAME
+                
+        # Retrieve the trip counter        
+        counter_df = getattr(self, num_item + '_counter')
+        
+        # Initialize the counter if it doesn't exist
+        if item_id not in counter_df.index:
+            newindex = pd.Index([item_id], name=index_name)
+            newindex = counter_df.index.append(newindex)
+            counter_df = counter_df.reindex(newindex, fill_value=0)
+            
+        # Iterate
+        num = counter_df.loc[item_id]
+        num = 1 if (np.isnan(num) or num == 995 or num < 0) else num + 1
+        counter_df.loc[item_id] = num
+        
+        # Return the new trip number
+        setattr(self, num_item, counter_df)
+                                  
+        return num
+        
     def copy_from_host(self, **kwargs):
         """
         Although host_trip has already been copied, this method ensures that every column is explicitly defined in teh trip_column_actions.csv file.        
@@ -162,9 +223,9 @@ class NonProxyTripPopulator:
         """
         
         member_id = kwargs['member_id']
-        day_num = kwargs['host_trip'][DAYNUM_COL]
+        # day_num = kwargs['host_trip'][DAYNUM_COL]
         
-        return self.iterate_counter('trip', member_id, day_num)
+        return self.iterate_counter('trip', member_id)
     
     def update_first_date(self, **kwargs):
         """

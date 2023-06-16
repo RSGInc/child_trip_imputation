@@ -24,6 +24,9 @@ OTIME_COL = COLNAMES['OTIME']
 DAYNUM_COL = COLNAMES['DAYNUM']
 PNUM_COL = COLNAMES['PNUM']
 MODE = COLNAMES['MODE']
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM_COL']
+
 R = settings.R
 
 assert isinstance(PER_ID_NAME, str), 'PER_ID_NAME not a string'
@@ -49,22 +52,23 @@ def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, 
     # Setup the dataframe for faster processing
     trim_cols = [PER_ID_NAME, HH_ID_NAME]
     trim_cols += OLATLON_COLS + DLATLON_COLS 
-    trim_cols += [OTIME_COL, DTIME_COL, PNUM_COL, DAYNUM_COL, MODE, 'joint_trip_num']    
+    trim_cols += [OTIME_COL, DTIME_COL, PNUM_COL, DAYNUM_COL, MODE, JOINT_TRIPNUM_COL]    
     # Get non-empty household member columns    
     # trim_cols += trips_df.filter(regex=HHMEMBER_PREFIX).columns.tolist()
     trim_cols += (trips_df.filter(regex=HHMEMBER_PREFIX).clip(0, 2).replace(2, 0).sum(axis=0) > 0).index.tolist()
         
-        # Pre-index on household_id and day_num for faster lookup
+    # Pre-index on household_id and day_num for faster lookup
     hh_trips_df = trips_df[trim_cols].reset_index().set_index([HH_ID_NAME, DAYNUM_COL]).sort_index()
         
     print('Finding unreported joint trips...')
-    fixed_joint_trips_ls = []
-    for (hh_id, day_num), hh_trips in tqdm(hh_trips_df.groupby(level=(0, 1))):
-        fixed_df = find_joint_hh_trips(hh_trips, distance_threshold, time_threshold)
-        if not fixed_df.empty:
-            fixed_joint_trips_ls.append(fixed_df)
-        
-    fixed_joint_trips = pd.concat(fixed_joint_trips_ls).set_index(TRIP_ID_NAME).filter(regex=HHMEMBER_PREFIX)
+    # Run loop in list comprehension for faster processing
+    fixed_ls = [find_joint_hh_trips(hh_trips, distance_threshold, time_threshold) for hh_id, hh_trips in tqdm(hh_trips_df.groupby(level=(0, 1)))]
+    
+    # Drop empty frames
+    fixed_ls = [df for df in fixed_ls if not df.empty]
+    
+    # Concatenate all the fixed joint trips into dataframe    
+    fixed_joint_trips = pd.concat(fixed_ls).set_index(TRIP_ID_NAME).filter(regex=f'{HHMEMBER_PREFIX}|{JOINT_TRIPNUM_COL}')
     
     # Store for debugging
     # trips_df_old = trips_df.copy()
@@ -143,8 +147,8 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
         # Assign a unique joint trip number using some graph theory to find the connected person-trips
         joint_trip_nums = disjoint_set(joint_idx)
         
-        # Retireve the column and row indices for the joint trip    
-        jt_col = hh_trips.columns.get_loc('joint_trip_num')
+        # Retrieve the column and row indices for the joint trip    
+        jt_col = hh_trips.columns.get_loc(JOINT_TRIPNUM_COL)
         idx = list(joint_trip_nums.keys())
         
         # Set the joint trip number    
