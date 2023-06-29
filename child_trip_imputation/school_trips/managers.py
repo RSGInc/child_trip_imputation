@@ -4,6 +4,7 @@ CLASS MANAGERS WILL BE PLACED IN THEIR OWN FILES AS THEY GROW TOO LARGE
 
 """
 import pandas as pd
+import utils.io
 from utils.io import DBIO
 
 """
@@ -22,13 +23,16 @@ class ManagerClass:
     """
     Manager base class to avoid repeating myself    
     """
-    def __init__(self, data: pd.DataFrame, DBIO=DBIO) -> None:
+    
+    # The Database IO object is part of the class
+    DBIO: utils.io.IO = DBIO
+    
+    def __init__(self, data: pd.DataFrame) -> None:
         
         assert data.shape[0] == 1, 'Class manager data must be a single row pandas dataframe'
         assert isinstance(data, pd.DataFrame), 'Class manager data must be a pandas dataframe'
     
         self.data = data
-        self.DBIO = DBIO
         
             
     def get_related(self, related: str, on: str|list|None = None) -> pd.DataFrame:

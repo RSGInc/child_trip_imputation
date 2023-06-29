@@ -14,6 +14,9 @@ class IO:
     where the updates are immediately available to all other classes and methods without saving to disk.
     """
     
+    summaries = {}
+    current_step = None
+    
     def __init__(self) -> None:
                     
         # Create receiving folders if not existing        
@@ -96,32 +99,45 @@ class IO:
         """
         assert isinstance(settings.TABLES, dict), 'TABLES must be a dictionary of canonical table names and POPS name'
         
+        # Update the cache log if cache dir is set
+        assert isinstance(settings.CACHE_DIR, str), f'{settings.CACHE_DIR} must be a string'
+        for entry in self.cache_log.itertuples():
+            if not os.path.isfile(entry.cached_table):
+                self.cache_log.drop(entry.Index, inplace=True)        
+                self.cache_log.to_csv(os.path.join(settings.CACHE_DIR, 'log.csv'), index=True)
+
         # Check if table exists in settings, IO object, or cache log otherwise it's not a real table.
-        table_exists = table in settings.TABLES.keys() or hasattr(self, table) or table in self.cache_log.table_name.to_list()
+        table_exists = table in settings.TABLES.keys() or hasattr(self, table) or table in self.cache_log.table.to_list()
+        
         assert table_exists, f'{table} not in settings.TABLES, loaded in IO object, or in cache log.'        
         
-        if not hasattr(self, table):
+        # If has object and step is complete, otherwise attempt load from cache or POPS
+        # or step in self.cache_log.index.to_list()
+        if hasattr(self, table) and (step is None or step == self.current_step):
+            df = getattr(self, table)
             
+        else:            
             # If cache path is specified, use that
             if step:
                 cached = self.cache_log.loc[step]                
-                table_index, table_name, cache_path = cached[['index_name', 'table_name', 'cached_table']].to_list()
+                table_index, table_name, cache_path = cached[['index', 'table', 'cached_table']].to_list()
                 
                 # If the cached file was removed, delete the log entry and try again
                 if not os.path.isfile(cache_path):
                     self.cache_log.drop(step, inplace=True)
-                    assert isinstance(settings.CACHE_DIR, str), 'settings.CACHE_DIR must be a string'
+                    assert isinstance(settings.CACHE_DIR, str), f'{settings.CACHE_DIR} must be a string'
                     self.cache_log.to_csv(os.path.join(settings.CACHE_DIR, 'log.csv'), index=True)
                     Warning(f'Cached file {cache_path} not found. Log has been altered, please re-run the step.')
-                    exit(1)
+                    return None
                 
             else:
                 table_name, table_index, cache_path = self.validate_table_request(table)
             
             # Read cached file if available
             if os.path.isfile(cache_path):
-                print(f'Load {table_name} from cache')
+                print(f'Load {table_name}({step}) from cache')
                 df = pd.read_parquet(cache_path)
+                self.current_step = step
 
             # Else, fetch from POPS
             else:
@@ -142,10 +158,7 @@ class IO:
                     
                 df.to_parquet(cache_path)                          
             
-            setattr(self, table, df)                        
-            
-        else:
-            df = getattr(self, table)
+            setattr(self, table, df)                                    
         
         # Extract pandera schema
         if hasattr(self, f'schema_{table}'):
@@ -190,8 +203,16 @@ class IO:
         
         return table_name, table_index, cache_path
     
-    def to_csv(self):
-        pass
+    def to_csv(self, df, name):
+        assert isinstance(df, pd.DataFrame), 'df must be a pandas DataFrame'
+        assert isinstance(name, str), 'name must be a string'
+        assert isinstance(settings.OUTPUT_DIR, str), 'settings.OUTPUT_DIR must be a string'
+        
+        fpath = os.path.join(settings.OUTPUT_DIR, f'{name}.csv')
+        df.to_csv(fpath, index=True)
+        
+        
+        
     
     
 DBIO = IO()

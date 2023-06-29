@@ -182,3 +182,4 @@ early_depart,copy_from_host
 arrive_dow,copy_from_host
 depart_dow,copy_from_host
 trip_weight,copy_from_host
+corrected_hh_members,int(0)

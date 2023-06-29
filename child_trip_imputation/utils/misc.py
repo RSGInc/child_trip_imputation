@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import settings
-from managers.managers import DayManagerClass
+from school_trips.managers import DayManagerClass
 
 # Constants
 # Extract column names for origin and destination lat/lon

@@ -1,6 +1,5 @@
 from tqdm import tqdm
 import pandas as pd
-import numpy as np
 from datetime import timedelta
 
 # Internal imports
@@ -106,7 +105,7 @@ class ImputeNonProxyTrips:
         
         # Update the joint trip id
         is_joint = fixed_trips_df[JOINT_TRIPNUM_COL] != 995        
-        fixed_trips_df.loc[is_joint, JOINT_TRIP_ID_NAME] = fixed_trips_df.loc[is_joint].apply(joint_trip_id, axis=1)  
+        fixed_trips_df.loc[is_joint, JOINT_TRIP_ID_NAME] = fixed_trips_df.loc[is_joint].apply(cat_joint_trip_id, axis=1)  
         
         return fixed_trips_df
     
@@ -123,12 +122,12 @@ class ImputeNonProxyTrips:
         
         # Get unlabeled joint trips, for flexibility we allow for joint trips that are labeled as 0 or -1 or 995
         unlabeled_joint_trips = joint_trips[
-            joint_trips.joint_trip_num.isna() | (joint_trips.joint_trip_num <= 0) | (joint_trips.joint_trip_num == 995)
+            joint_trips[JOINT_TRIPNUM_COL].isna() | (joint_trips[JOINT_TRIPNUM_COL] <= 0) | (joint_trips[JOINT_TRIPNUM_COL] == 995)
             ]
 
         # Trim and sort index for performance
         assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
-        unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=['joint_trip_num', DAY_ID_NAME]).sort_values(TRIP_ID_NAME)
+        unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=[JOINT_TRIPNUM_COL, DAY_ID_NAME]).sort_values(TRIP_ID_NAME)
         
         # Initialize trip populator class to hold the data and manage trip counts
         Populator = NonProxyTripPopulator(persons_df, trips_df)
@@ -143,7 +142,7 @@ class ImputeNonProxyTrips:
             
             # Get host trip and update the joint trip number
             host_trip = trips_df.loc[host_trip_id].copy()        
-            host_trip['joint_trip_num'] = Populator.iterate_counter('joint_trip', host_hh_id)
+            host_trip[JOINT_TRIPNUM_COL] = Populator.iterate_counter('joint_trip', host_hh_id)
             
             for i, hh_member_id, hh_member_num in members[['hh_member_id', 'hh_member_num']].itertuples():
                 # Populate new trip            
@@ -156,7 +155,8 @@ class ImputeNonProxyTrips:
         assert len(set(new_trips_df.index).intersection(trips_df.index)) == 0, "New trips should not have the same index as existing trips"
         
         combined_trips_df = pd.concat([trips_df, new_trips_df])
-        # combined_trips_df.loc[combined_trips_df.joint_trip_num == 0, 'joint_trip_num'] = 995
+        combined_trips_df['imputed_joint_trip'] = 0
+        combined_trips_df.loc[new_trips_df.index, 'imputed_joint_trip'] = 1
         
         return combined_trips_df
 

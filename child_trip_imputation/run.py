@@ -1,8 +1,6 @@
 # External packages
 import logging
 import pandas as pd
-from tqdm import tqdm # There is a parallel version of tqdm called pqdm
-from collections.abc import Iterable
 
 # Internal imports
 from utils.io import DBIO
@@ -20,6 +18,13 @@ from school_trips.impute import ImputeSchoolTrips
     •	[report_bad_impute] Unable to import, report warning/summary
 """
 
+# CONSTANTS
+# Extract column names for origin and destination lat/lon
+assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
+COLNAMES = settings.COLUMN_NAMES
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+
+
 class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         
     def __init__(self) -> None:
@@ -29,14 +34,17 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         that interact with the DBIO object to enable caching and to allow the other functions to run standalone
         """
         assert isinstance(settings.STEPS, list)
+        
         for step in settings.STEPS:
-            
             # If step already run, load from cache
             if settings.RESUME_AFTER and step in DBIO.cache_log.index:
-                table = DBIO.cache_log.loc[step, 'table_name']
+                table = DBIO.cache_log.loc[step, 'table']
                 cache_path = DBIO.cache_log.loc[step, 'cached_table']
                 assert isinstance(cache_path, str), f'Cached table path for step {step} is not a string'                
-                DBIO.get_table(table, step)
+                df = DBIO.get_table(table, step)
+                if df is None:
+                    # If the table is not in the DBIO object, re-run the step
+                    getattr(self, step)()
             else:            
                 getattr(self, step)()
     
@@ -48,7 +56,10 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         pass
     
     # These inherited functions are wrappers to interact with the DBIO object
-    def create_tours(self) -> None:           
+    def create_tours(self) -> None:
+        """
+        Append tours id to trips, creates tours table from trips table and updates DB object.
+        """
         trips_df = DBIO.get_table('trip')
         
         # Bulk create tour IDs per person so they can be determined as joint tours later
@@ -87,7 +98,7 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
     def impute_reported_joint_trips(self) -> None:
         """
         Impute all missing reported joint trips and update DB object.
-        """
+        """        
         kwargs = {'persons_df': DBIO.get_table('person'), 'trips_df': DBIO.get_table('trip')}        
         updated_trips_df = super(Imputation, self).impute_reported_joint_trips(**kwargs)
         
@@ -98,29 +109,49 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
 
     def impute_school_trips(self) -> None:
         """
-        1) Impute all non-proxy joint trips and update DB object.
-        This was written as a standalone class so it can be run independently of this imputation class, but able to be iherited easily.
+        Impute all missing school trips and update DB object.
         """        
         
         assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
         
         kwargs = {
             'households_df': DBIO.get_table('household'),
-            'persons_df': DBIO.get_table('person'),
-            'trips_df': DBIO.get_table('trip')[:100],
-            **settings.JOINT_TRIP_BUFFER
+            # 'persons_df': DBIO.get_table('person'),
+            # 'trips_df': DBIO.get_table('trip'),
+            # **settings.JOINT_TRIP_BUFFER
             }
         
-        imputed_nonproxy_trips_df = super(Imputation, self).impute_school_trips(**kwargs)
+        imputed_school_trips_df = super(Imputation, self).impute_school_trips(**kwargs)
         
         # Update the class DBIO object data.
-        assert isinstance(imputed_nonproxy_trips_df, pd.DataFrame), f'imputed_nonproxy_trips_df is not a DataFrame'
-        DBIO.update_table('trip', imputed_nonproxy_trips_df, step_name = 'impute_nonproxy')
+        assert isinstance(imputed_school_trips_df, pd.DataFrame), f'Imputed school trips is not a DataFrame'
+        DBIO.update_table('trip', imputed_school_trips_df, step_name = 'impute_school_trips')
 
     def reconcile_id_sets(self) -> None:
         # some of the ID sequences are inconsistent, so we need to reconcile them
         # E.g., trip_id starts at ...003 but trip_num starts at 1
         pass
+    
+    def summaries(self) -> None:
+        """
+        Create summary tables and update DB object.
+        """
+        
+        # Summarize the number of flagged joint trips and corrected hh members on those joint trips
+        joint_trips_df = DBIO.get_table('trip', step='flag_unreported_joint_trips')
+        assert joint_trips_df is not None, f'Joint trips table is missing'
+        
+        DBIO.summaries['total_joint_trips'] = joint_trips_df[joint_trips_df[JOINT_TRIP_ID_NAME] != 995].shape[0]
+        DBIO.summaries['joint_trips'] = joint_trips_df.loc[joint_trips_df[JOINT_TRIP_ID_NAME] != 995, JOINT_TRIP_ID_NAME].nunique()
+        DBIO.summaries['unreported_joint_trips'] = joint_trips_df['corrected_hh_members'].sum()
+        
+        # Summarize the number of imputed joint trips
+        imputed_joint_trips_df = DBIO.get_table('trip', step='impute_reported_joint_trips')
+        assert imputed_joint_trips_df is not None, f'Imputed joint trips table is missing'
+        
+        DBIO.summaries['imputed_joint_trips'] = imputed_joint_trips_df['imputed_joint_trip'].sum()
+        
+        
 
 if __name__ == "__main__":
     IMP = Imputation()
