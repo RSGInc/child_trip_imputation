@@ -1,11 +1,11 @@
 """
-THIS IS A TEMPORARY DEV FILE
-CLASS MANAGERS WILL BE PLACED IN THEIR OWN FILES AS THEY GROW TOO LARGE
-
+CLASS MANAGERS TO BE PLACED IN THEIR OWN FILES AS THEY GROW TOO LARGE
 """
 import pandas as pd
 import utils.io
 from utils.io import DBIO
+
+import settings
 
 """
 HTS Class managers inheritance structure:
@@ -16,7 +16,22 @@ HouseholdManagerClass: Contains dict for all persons in the household
 |               |           ├── {tour_id: TourManagerClass} - Iherits day, contains dict for all trips for a tour
 |               |           |              ├── {trip_id: TripManagerClass} - Inherits tour, contains trip data
 ...
+
+This enables tree-like traversal of the data so only the relevant data is available at each iteration.
+E.g., from a trip, person data can be accessed via TripMgr.TourMgr.DayMgr.PersonMgr.data
+which will return the person data for the person who made the trip.
+
+We're going to skip Tour manager for now until it can be fully implemented.
+
 """
+
+
+# CONSTANTS
+# Extract column names for origin and destination lat/lon
+assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
+COLNAMES = settings.COLUMN_NAMES
+HHMEMBER_PREFIX = COLNAMES['HHMEMBER']
+SCHOOL_MODE = COLNAMES['SCHOOL_MODE']
 
 
 class ManagerClass:
@@ -27,13 +42,13 @@ class ManagerClass:
     # The Database IO object is part of the class
     DBIO: utils.io.IO = DBIO
     
-    def __init__(self, data: pd.DataFrame) -> None:
+    def __init__(self, data: pd.DataFrame|None) -> None:
         
-        assert data.shape[0] == 1, 'Class manager data must be a single row pandas dataframe'
-        assert isinstance(data, pd.DataFrame), 'Class manager data must be a pandas dataframe'
+        assert isinstance(data, pd.DataFrame|None), 'Class manager data must be a pandas dataframe'
+        if data is not None:
+            assert data.shape[0] == 1, 'Class manager data must be a single row pandas dataframe'        
     
         self.data = data
-        
             
     def get_related(self, related: str, on: str|list|None = None) -> pd.DataFrame:
         """
@@ -48,10 +63,10 @@ class ManagerClass:
         """
         df = self.DBIO.get_table(related)
         
-        assert isinstance(df, pd.DataFrame), f'{related} table is not a DataFrame'
-        assert self.data.index.name in df.columns, 'Class manager related data must have a common index with data'            
-        assert isinstance(df, pd.DataFrame), 'Class manager related data must be a pandas dataframe'
+        assert isinstance(df, pd.DataFrame), f'{related} table is not a DataFrame'        
+        assert isinstance(self.data, pd.DataFrame), 'Class manager data must be a pandas dataframe when fetching related data'
         assert isinstance(on, str|list) or on is None, 'Class manager related data on must be a string or None'
+        assert self.data.index.name in df.columns, 'Class manager related data must have a common index with data'            
 
         if on is None:
             on_cols = self.data.index.name
@@ -94,11 +109,27 @@ class TourManagerClass(ManagerClass):
         
 class TripManagerClass(ManagerClass):
     # Tour manager is not fully implemented yet, so optional for now
-    def __init__(self, trip: pd.DataFrame, Day: DayManagerClass, Tour: TourManagerClass|None) -> None:
+    def __init__(self, trip: pd.DataFrame|None, Day: DayManagerClass, Tour: TourManagerClass|None) -> None:        
         super().__init__(trip)
         self.Tour = Tour
         self.Day = Day
-
+    
+    def impute_from_escort(self, escort_trip: pd.DataFrame):
+        # TODO: Implement
+        pass
+    
+    def impute_from_altday(self, altday_trip: pd.DataFrame):
+        # TODO: Implement
+        pass
+    
+    def impute_new_school_trip(self):
+        # TODO: Implement
+        assert isinstance(self.Day.Person.data, pd.DataFrame), 'Day.Person.data must be a DataFrame'
+        
+        list(self.Day.Person.data.columns)
+        self.Day.Person.data[SCHOOL_MODE]
+        pass
+    
     def populate(self, trip_trips):
         pass
     
