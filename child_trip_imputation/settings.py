@@ -99,9 +99,11 @@ CACHE_DIR = SETTINGS.get('CACHE_DIR')
 OUTPUT_DIR = SETTINGS.get('OUTPUT_DIR')
 CODES = SETTINGS.get('CODES')
 RESUME_AFTER = SETTINGS.get('RESUME_AFTER')
+IMPUTATION_CONFIGS = SETTINGS.get('IMPUTATION_CONFIGS')
 
-# Radius of the Earth in feet for Haversine distance calculation
-R = 3963.19 * 5280
+# Radius of the Earth for Haversine distance calculation
+# R = 3963.19 * 5280 #feet
+R = 6378100 #meters
 
  # Column name defaults
 COLUMN_NAMES = {
@@ -109,21 +111,6 @@ COLUMN_NAMES = {
     'TRIP_ID_NAME': get_index_name('trip'),
     'HH_ID_NAME': get_index_name('household'),
     'DAY_ID_NAME': get_index_name('day'),
-    'DAYNUM': 'day_num',
-    'PNUM': 'person_num',
-    'TRIPNUM': 'trip_num',
-    'OLAT': 'o_lat',
-    'OLON': 'o_lon',
-    'DLAT': 'd_lat',
-    'DLON': 'd_lon',
-    'OTIME': 'depart_time',
-    'DTIME': 'arrive_time',
-    'HHMEMBER': 'hh_member_',
-    'MODE': 'mode_type',
-    'TRAVELDATE': 'travel_date',
-    'DRIVER': 'driver',
-    'JOINT_TRIP_ID_NAME': 'joint_trip_id',
-    'JOINT_TRIPNUM': 'joint_trip_num'
     }
 
 COLUMN_NAMES_UPDATE = SETTINGS.get('COLUMN_NAMES', {})

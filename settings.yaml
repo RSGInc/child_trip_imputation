@@ -1,8 +1,8 @@
 # POPS settings
-STUDY_SCHEMA: 'spring_2022'
-DB_SYS: 'postgresql'
-PG_DB: "sandag_hts"
-PG_HOST: "pops.rsginc.com"
+STUDY_SCHEMA: spring_2022
+DB_SYS: postgresql
+PG_DB: sandag_hts"
+PG_HOST: pops.rsginc.com
 PG_PORT: 5432
 
 # Processing inputs/outputs
@@ -31,6 +31,11 @@ STEPS:
   - impute_school_trips
   - summaries
 
+# Column actions config csv file locations
+IMPUTATION_CONFIGS:
+  impute_reported_joint_trips: column_actions_joint_trips.csv
+  impute_school_trips: column_actions_school_trips.csv
+
 # If commented out, data will not be stored locally
 RESUME_AFTER: True # It will resume using the last processed step
 CACHE_DIR: 'cache'
@@ -58,16 +63,31 @@ CODES:
       o_purpose: 1
     DESTINATION:
       d_purpose: 1
+# Escort purpose codes
+  ESCORT_PURPOSES:
+    d_purpose: [6]
 
 JOINT_TRIP_BUFFER:
-  DISTANCE: 1000 # Feet
+  DISTANCE: 250 # Meters
   TIME: 15 # Minutes
 
 # In case there are non-default column names
-# COLUMN_NAMES:
-#   DAYNUM: day_num
-#   OLAT: o_lat
-#   OLON: o_lon
-#   DLAT: d_lat
-#   DLON: d_lon
+COLUMN_NAMES:
+  SCHOOL_MODE: school_mode
+  WORK_MODE: work_mode
+  DAYNUM: day_num
+  PNUM: person_num
+  TRIPNUM: trip_num
+  OLAT: o_lat
+  OLON: o_lon
+  DLAT: d_lat
+  DLON: d_lon
+  OTIME: depart_time
+  DTIME: arrive_time
+  HHMEMBER: hh_member_
+  MODE: mode_type
+  TRAVELDATE: travel_date
+  DRIVER: driver
+  JOINT_TRIP_ID_NAME: joint_trip_id
+  JOINT_TRIPNUM: joint_trip_num
 

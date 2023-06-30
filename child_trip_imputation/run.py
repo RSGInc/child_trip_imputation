@@ -61,6 +61,7 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         Append tours id to trips, creates tours table from trips table and updates DB object.
         """
         trips_df = DBIO.get_table('trip')
+        assert isinstance(trips_df, pd.DataFrame), f'Trips table is not a DataFrame'
         
         # Bulk create tour IDs per person so they can be determined as joint tours later
         trips_df = bulk_trip_to_tours(trips_df)
@@ -86,8 +87,11 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         """
         Flag all unreported joint trips and update DB object. 
         """
+        trip_df = DBIO.get_table('trip')
         assert isinstance(settings.JOINT_TRIP_BUFFER, dict)        
-        kwargs = { 'trips_df': DBIO.get_table('trip'), **settings.JOINT_TRIP_BUFFER}        
+        assert isinstance(trip_df, pd.DataFrame), f'Trips table is not a DataFrame'
+        
+        kwargs = {'trips_df': trip_df, **settings.JOINT_TRIP_BUFFER}        
         flagged_trips_df = super(Imputation, self).flag_unreported_joint_trips(**kwargs)
         
         # Update the class DBIO object data.
@@ -114,14 +118,16 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         
         assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
         
-        kwargs = {
-            'households_df': DBIO.get_table('household'),
-            # 'persons_df': DBIO.get_table('person'),
-            # 'trips_df': DBIO.get_table('trip'),
-            # **settings.JOINT_TRIP_BUFFER
-            }
+        hh_df = DBIO.get_table('household')
+        assert isinstance(hh_df, pd.DataFrame), f'Households table is not a DataFrame'        
+        # kwargs = {
+        #     'households_df': hh_df,
+        #     # 'persons_df': DBIO.get_table('person'),
+        #     # 'trips_df': DBIO.get_table('trip'),
+        #     # **settings.JOINT_TRIP_BUFFER
+        #     }
         
-        imputed_school_trips_df = super(Imputation, self).impute_school_trips(**kwargs)
+        imputed_school_trips_df = super(Imputation, self).impute_school_trips(households_df = hh_df)
         
         # Update the class DBIO object data.
         assert isinstance(imputed_school_trips_df, pd.DataFrame), f'Imputed school trips is not a DataFrame'

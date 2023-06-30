@@ -48,6 +48,7 @@ class ManagerClass:
         """
         df = self.DBIO.get_table(related)
         
+        assert isinstance(df, pd.DataFrame), f'{related} table is not a DataFrame'
         assert self.data.index.name in df.columns, 'Class manager related data must have a common index with data'            
         assert isinstance(df, pd.DataFrame), 'Class manager related data must be a pandas dataframe'
         assert isinstance(on, str|list) or on is None, 'Class manager related data on must be a string or None'
@@ -88,11 +89,16 @@ class TourManagerClass(ManagerClass):
         super().__init__(tour)
         self.Day = Day
         
-    def populate_tour(self, tour_trips):
+    def populate(self, tour_trips):
         pass
         
 class TripManagerClass(ManagerClass):
-    def __init__(self, trip: pd.DataFrame, Tour: TourManagerClass) -> None:
+    # Tour manager is not fully implemented yet, so optional for now
+    def __init__(self, trip: pd.DataFrame, Day: DayManagerClass, Tour: TourManagerClass|None) -> None:
         super().__init__(trip)
-        self.Tour = Tour    
+        self.Tour = Tour
+        self.Day = Day
 
+    def populate(self, trip_trips):
+        pass
+    

@@ -75,7 +75,10 @@ class ImputeNonProxyTrips:
         # Drop empty member slots    
         trips = trips[trips.value == 1].drop(columns='value')
         
-        # Get person number 
+        # Get person number
+        assert isinstance(PNUM_COL, str), 'PNUM_COL not a string'
+        assert isinstance(HHMEMBER_PREFIX, str), 'HHMEMBER_PREFIX not a string'
+        
         trips.person_num = trips.person_num.str.replace(HHMEMBER_PREFIX, '').astype(int)
             
         # Create member ID table
@@ -104,6 +107,7 @@ class ImputeNonProxyTrips:
         fixed_trips_df = fix_existing_joint_trips(trips_df, distance_threshold, time_threshold)
         
         # Update the joint trip id
+        assert isinstance(JOINT_TRIP_ID_NAME, str), 'JOINT_TRIP_ID_NAME not a string'
         is_joint = fixed_trips_df[JOINT_TRIPNUM_COL] != 995        
         fixed_trips_df.loc[is_joint, JOINT_TRIP_ID_NAME] = fixed_trips_df.loc[is_joint].apply(cat_joint_trip_id, axis=1)  
         

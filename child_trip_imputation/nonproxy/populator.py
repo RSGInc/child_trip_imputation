@@ -9,6 +9,8 @@ from utils.misc import cat_joint_trip_id, cat_trip_id
 
 # Extract column names for origin and destination lat/lon
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
+assert isinstance(settings.IMPUTATION_CONFIGS, dict), 'IMPUTATION_CONFIGS not a dict'
+
 COLNAMES = settings.COLUMN_NAMES
 
 PER_ID_NAME = COLNAMES['PER_ID_NAME']
@@ -20,6 +22,9 @@ TRAVELDATE_COL = COLNAMES['TRAVELDATE']
 DRIVER_COL = COLNAMES['DRIVER']
 JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
+COL_ACTIONS_PATH = settings.IMPUTATION_CONFIGS.get('impute_reported_joint_trips')
+
+assert isinstance(COL_ACTIONS_PATH, str), 'impute_reported_joint_trips not a string'
 
 class NonProxyTripPopulator:
     """
@@ -28,7 +33,9 @@ class NonProxyTripPopulator:
     """
     
     def __init__(self, person_df: pd.DataFrame, trips_df: pd.DataFrame) -> None:
-        self.actions = pd.read_csv('trip_column_actions.csv')
+        assert isinstance(COL_ACTIONS_PATH, str), f'COL_ACTIONS_PATH {COL_ACTIONS_PATH} not a string'
+        
+        self.actions = pd.read_csv(COL_ACTIONS_PATH)
         self.trips_df = trips_df
         self.person_df = person_df
         
@@ -64,6 +71,8 @@ class NonProxyTripPopulator:
         # Update the trip id        
         # Simply concatenating the ID is problematic because the trip number is inconsistent with trip_num
         # Need to pull the new trip_id from the trip_counter and joint_trip_counter
+        assert isinstance(TRIP_ID_NAME, str), f'TRIP_ID_NAME {TRIP_ID_NAME} not a string'
+        
         new_trip_id = self.trip_counter.loc[member_id, TRIP_ID_NAME]
         new_joint_trip_id = self.joint_trip_counter.loc[new_trip[HH_ID_NAME], JOINT_TRIP_ID_NAME]
         

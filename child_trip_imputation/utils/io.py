@@ -16,6 +16,7 @@ class IO:
     
     summaries = {}
     current_step = None
+    table_list = []
     
     def __init__(self) -> None:
                     
@@ -55,6 +56,11 @@ class IO:
         persons_df = self.get_table('person')
         days_df = self.get_table('day')
         trips_df = self.get_table('trip')
+        
+        assert isinstance(households_df, pd.DataFrame)
+        assert isinstance(persons_df, pd.DataFrame)
+        assert isinstance(days_df, pd.DataFrame)
+        assert isinstance(trips_df, pd.DataFrame)
         
         person_index = persons_df[[households_df.index.name]].reset_index().astype(str)
         day_index = days_df[[persons_df.index.name, 'day_num']].reset_index().astype(str)
@@ -151,14 +157,16 @@ class IO:
                 
                 conn_string = f"{dbsys}://{username}:{password}@{hostname}:{port}/{database}"                
                 engine = sqlalchemy.create_engine(conn_string)
-                df = pd.read_sql(f"select * from {settings.STUDY_SCHEMA}.{table_name}", con=engine)
+                query = f"select * from {settings.STUDY_SCHEMA}.{table_name}"
+                df = pd.read_sql(query, con=engine)
                 
                 if table_index:
                     df.set_index(table_index, inplace=True)
                     
                 df.to_parquet(cache_path)                          
             
-            setattr(self, table, df)                                    
+            setattr(self, table, df)
+            self.table_list.append(table)                                 
         
         # Extract pandera schema
         if hasattr(self, f'schema_{table}'):
@@ -167,8 +175,8 @@ class IO:
             schema = pa.infer_schema(df)
             setattr(self, f'schema_{table}', schema)  
                
-        assert isinstance(schema, pa.DataFrameSchema)
-            
+        assert isinstance(schema, pa.DataFrameSchema), f'schema_{table} must be a pandera DataFrameSchema'
+        
         return df
     
     def validate_table_request(self, table: str) -> tuple:
