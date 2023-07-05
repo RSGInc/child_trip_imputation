@@ -40,7 +40,9 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
             if settings.RESUME_AFTER and step in DBIO.cache_log.index:
                 table = DBIO.cache_log.loc[step, 'table']
                 cache_path = DBIO.cache_log.loc[step, 'cached_table']
-                assert isinstance(cache_path, str), f'Cached table path for step {step} is not a string'                
+                assert isinstance(cache_path, str), f'Cached table path for step {step} is not a string'      
+                assert isinstance(table, str), f'Table name for step {step} is not a string'
+                          
                 df = DBIO.get_table(table, step)
                 if df is None:
                     # If the table is not in the DBIO object, re-run the step
@@ -118,8 +120,8 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         
         assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
         
-        hh_df = DBIO.get_table('household')
-        assert isinstance(hh_df, pd.DataFrame), f'Households table is not a DataFrame'        
+        # hh_df = DBIO.get_table('household')
+        # assert isinstance(hh_df, pd.DataFrame), f'Households table is not a DataFrame'        
         # kwargs = {
         #     'households_df': hh_df,
         #     # 'persons_df': DBIO.get_table('person'),
@@ -127,7 +129,7 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         #     # **settings.JOINT_TRIP_BUFFER
         #     }
         
-        imputed_school_trips_df = super(Imputation, self).impute_school_trips(households_df = hh_df)
+        imputed_school_trips_df = super(Imputation, self).impute_school_trips()
         
         # Update the class DBIO object data.
         assert isinstance(imputed_school_trips_df, pd.DataFrame), f'Imputed school trips is not a DataFrame'

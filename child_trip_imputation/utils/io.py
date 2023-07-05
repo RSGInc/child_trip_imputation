@@ -17,7 +17,7 @@ class IO:
     summaries = {}
     current_step = None
     table_list = []
-    
+        
     def __init__(self) -> None:
                     
         # Create receiving folders if not existing        
@@ -39,8 +39,7 @@ class IO:
             if os.path.isfile(log_path):            
                 self.cache_log = pd.read_csv(log_path, parse_dates=['timestamp']).set_index('step_name')
             else:
-                self.cache_log.to_csv(log_path)
-            
+                self.cache_log.to_csv(log_path)            
             
     def list_tables(self):
         assert isinstance(settings.TABLES, dict)        
@@ -94,7 +93,7 @@ class IO:
         
         return    
         
-    def get_table(self, table, step: str|None = None):
+    def get_table(self, table: str, step: str|None = None) -> pd.DataFrame|None:
         """
         Returns pandas DataFrame table for the requested table. 
         Checks first if already loaded, then checks cached data, then fetches from POPS.
@@ -127,7 +126,7 @@ class IO:
             if step:
                 cached = self.cache_log.loc[step]                
                 table_index, table_name, cache_path = cached[['index', 'table', 'cached_table']].to_list()
-                
+                            
                 # If the cached file was removed, delete the log entry and try again
                 if not os.path.isfile(cache_path):
                     self.cache_log.drop(step, inplace=True)
@@ -177,7 +176,15 @@ class IO:
                
         assert isinstance(schema, pa.DataFrameSchema), f'schema_{table} must be a pandera DataFrameSchema'
         
+        
+        
         return df
+    
+    def record_exists(self, table: str, id: str|int) -> bool:
+        df = self.get_table(table)
+        assert isinstance(df, pd.DataFrame), f'{table} must be a pandas DataFrame'
+        
+        return id in df.index
     
     def validate_table_request(self, table: str) -> tuple:
         """
@@ -219,8 +226,5 @@ class IO:
         fpath = os.path.join(settings.OUTPUT_DIR, f'{name}.csv')
         df.to_csv(fpath, index=True)
         
-        
-        
-    
-    
+          
 DBIO = IO()

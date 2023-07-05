@@ -5,6 +5,7 @@ from datetime import timedelta
 # Internal imports
 import settings
 from utils.misc import cat_joint_trip_id
+from utils.trip_counter import TripCounter, TRIP_COUNTER
 from nonproxy.populator import NonProxyTripPopulator
 from nonproxy.timespace_buffer import fix_existing_joint_trips
 
@@ -13,16 +14,8 @@ from nonproxy.timespace_buffer import fix_existing_joint_trips
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
 
-HHMEMBER_PREFIX = COLNAMES['HHMEMBER']
-DAYNUM_COL = COLNAMES['DAYNUM']
-PNUM_COL = COLNAMES['PNUM']
 JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
-PER_ID_NAME = COLNAMES['PER_ID_NAME']
-TRIP_ID_NAME = COLNAMES['TRIP_ID_NAME']
-HH_ID_NAME = COLNAMES['HH_ID_NAME']
-DAY_ID_NAME = COLNAMES['DAY_ID_NAME']
-
 
 class ImputeNonProxyTrips:
     def joint_trip_member_table(self, persons_df: pd.DataFrame, trips_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -44,10 +37,10 @@ class ImputeNonProxyTrips:
             
         # Create member-trip table, replace any values > 1 with 0 (i.e., 995 missing values)    
         idx_cols = [settings.get_index_name(x) for x in ['person', 'household', 'day', 'trip']]
-        idx_cols += [JOINT_TRIPNUM_COL, DAYNUM_COL]
+        idx_cols += [JOINT_TRIPNUM_COL, COLNAMES['DAYNUM']]
         
         trips = trips_df.reset_index().set_index(idx_cols)
-        trips = trips.filter(regex=HHMEMBER_PREFIX).clip(0, 2).replace(2, 0)
+        trips = trips.filter(regex=COLNAMES['HHMEMBER']).clip(0, 2).replace(2, 0)
         
         # Trip count checks
         n_trips = trips_df.shape[0]
@@ -59,34 +52,34 @@ class ImputeNonProxyTrips:
         print(f"Joint trips to impute: {deficit_n_trips}")  
             
         # Drop non-joint trips
-        assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
+        assert isinstance(COLNAMES['TRIP_ID_NAME'], str), 'TRIP_ID_NAME not a string'
 
         member_count = trips.sum(axis=1)
-        nonjoint_trip_ids = trips.loc[member_count == 1].index.get_level_values(TRIP_ID_NAME)    
-        joint_trip_ids = trips.loc[member_count > 1].index.get_level_values(TRIP_ID_NAME)   
+        nonjoint_trip_ids = trips.loc[member_count == 1].index.get_level_values(COLNAMES['TRIP_ID_NAME'])    
+        joint_trip_ids = trips.loc[member_count > 1].index.get_level_values(COLNAMES['TRIP_ID_NAME'])   
             
         # Flatten the table
         trips = pd.melt(
             trips.reset_index(),
             id_vars=trips.index.names,
-            var_name=PNUM_COL,
+            var_name=COLNAMES['PNUM'],
             )
         
         # Drop empty member slots    
         trips = trips[trips.value == 1].drop(columns='value')
         
         # Get person number
-        assert isinstance(PNUM_COL, str), 'PNUM_COL not a string'
-        assert isinstance(HHMEMBER_PREFIX, str), 'HHMEMBER_PREFIX not a string'
+        assert isinstance(COLNAMES['PNUM'], str), 'PNUM_COL not a string'
+        assert isinstance(COLNAMES['HHMEMBER'], str), 'HHMEMBER_PREFIX not a string'
         
-        trips.person_num = trips.person_num.str.replace(HHMEMBER_PREFIX, '').astype(int)
+        trips.person_num = trips.person_num.str.replace(COLNAMES['HHMEMBER'], '').astype(int)
             
         # Create member ID table
-        member_id = persons_df[[HH_ID_NAME, PNUM_COL]].reset_index().rename(columns={PER_ID_NAME: 'hh_member_id'})
+        member_id = persons_df[[COLNAMES['HH_ID_NAME'], COLNAMES['PNUM']]].reset_index().rename(columns={COLNAMES['PER_ID_NAME']: 'hh_member_id'})
         
         # Join person id onto member-trip table
-        trips = trips.merge(member_id, on=[HH_ID_NAME, PNUM_COL], how='left')
-        trips = trips.rename(columns={PNUM_COL: 'hh_member_num'})
+        trips = trips.merge(member_id, on=[COLNAMES['HH_ID_NAME'], COLNAMES['PNUM']], how='left')
+        trips = trips.rename(columns={COLNAMES['PNUM']: 'hh_member_num'})
 
         # Separate joint and non-joint trips    
         nonjoint_trips = trips[trips.trip_id.isin(nonjoint_trip_ids)]
@@ -100,7 +93,7 @@ class ImputeNonProxyTrips:
         time_threshold = timedelta(minutes=kwargs.get('TIME', 30))
 
         # Initialize empty joint_trip_num column
-        trips_df[JOINT_TRIPNUM_COL] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIP_ID_NAME)
+        trips_df[JOINT_TRIPNUM_COL] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIPNUM_COL)
         trips_df[JOINT_TRIP_ID_NAME] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIP_ID_NAME)
         
         # 1. For each member-trip check if that person already has a trip but just wasn't reported as a joint trip member
@@ -108,12 +101,16 @@ class ImputeNonProxyTrips:
         
         # Update the joint trip id
         assert isinstance(JOINT_TRIP_ID_NAME, str), 'JOINT_TRIP_ID_NAME not a string'
+        assert isinstance(JOINT_TRIPNUM_COL, str), 'JOINT_TRIPNUM_COL not a string'
         is_joint = fixed_trips_df[JOINT_TRIPNUM_COL] != 995        
         fixed_trips_df.loc[is_joint, JOINT_TRIP_ID_NAME] = fixed_trips_df.loc[is_joint].apply(cat_joint_trip_id, axis=1)  
         
         return fixed_trips_df
     
-    def impute_reported_joint_trips(self, persons_df, trips_df):       
+    def impute_reported_joint_trips(self, persons_df, trips_df):
+        
+        # Initialize trip counter to this point
+        TRIP_COUNTER.initialize(trips_df, persons_df)       
             
         # 2. Flatten and separate trip table into joint and non-joint trips
         joint_trips, nonjoint_trips = self.joint_trip_member_table(persons_df, trips_df)    
@@ -130,14 +127,15 @@ class ImputeNonProxyTrips:
             ]
 
         # Trim and sort index for performance
-        assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
-        unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=[JOINT_TRIPNUM_COL, DAY_ID_NAME]).sort_values(TRIP_ID_NAME)
+        assert isinstance(COLNAMES['TRIP_ID_NAME'], str), 'TRIP_ID_NAME not a string'
+        unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=[JOINT_TRIPNUM_COL, COLNAMES['DAY_ID_NAME']]).sort_values(COLNAMES['TRIP_ID_NAME'])
         
         # Initialize trip populator class to hold the data and manage trip counts
         Populator = NonProxyTripPopulator(persons_df, trips_df)
         
         new_trips_ls = []
-        idx_names = [TRIP_ID_NAME, HH_ID_NAME, DAYNUM_COL]
+        # idx_names = [TRIP_ID_NAME, HH_ID_NAME, DAYNUM_COL]
+        idx_names = [COLNAMES[x] for x in ['TRIP_ID_NAME', 'HH_ID_NAME', 'DAYNUM']]
 
         # For each household member trip that is not self reported, create a new joint trip
         print("Imputing missing proxy reported joint trips...")
@@ -146,7 +144,7 @@ class ImputeNonProxyTrips:
             
             # Get host trip and update the joint trip number
             host_trip = trips_df.loc[host_trip_id].copy()        
-            host_trip[JOINT_TRIPNUM_COL] = Populator.iterate_counter('joint_trip', host_hh_id)
+            host_trip[JOINT_TRIPNUM_COL] = TRIP_COUNTER.iterate_counter('joint_trip', host_hh_id)
             
             for i, hh_member_id, hh_member_num in members[['hh_member_id', 'hh_member_num']].itertuples():
                 # Populate new trip            
@@ -154,7 +152,7 @@ class ImputeNonProxyTrips:
                 new_trips_ls.append(new_trip)
         
         new_trips_df = pd.concat(new_trips_ls, axis=1, ignore_index=False).T
-        new_trips_df.index.name = TRIP_ID_NAME
+        new_trips_df.index.name = COLNAMES['TRIP_ID_NAME']
         
         assert len(set(new_trips_df.index).intersection(trips_df.index)) == 0, "New trips should not have the same index as existing trips"
         

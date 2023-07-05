@@ -67,12 +67,25 @@ CODES:
   ESCORT_PURPOSES:
     d_purpose: [6]
 
+SCHOOL_TYPE_AGE:
+  COLS:
+    - d_purpose
+    - age
+  26: [1]     # Preschool <5 years
+  21: [2, 3]  # K-12 school 5-18 years
+  3: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] # All other ages are general "attend school/class"
+
 JOINT_TRIP_BUFFER:
   DISTANCE: 250 # Meters
   TIME: 15 # Minutes
 
+TIME_INCREMENT: 30Min
+DURATION_INCREMENT: 5Min
+LOCAL_TIMEZONE: America/Los_Angeles
+
 # In case there are non-default column names
 COLUMN_NAMES:
+  AGE: age
   SCHOOL_MODE: school_mode
   WORK_MODE: work_mode
   DAYNUM: day_num
@@ -84,6 +97,8 @@ COLUMN_NAMES:
   DLON: d_lon
   OTIME: depart_time
   DTIME: arrive_time
+  OHOUR: depart_hour
+  DHOUR: arrive_hour
   HHMEMBER: hh_member_
   MODE: mode_type
   TRAVELDATE: travel_date

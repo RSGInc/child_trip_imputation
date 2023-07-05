@@ -88,7 +88,7 @@ I am declaring the variables explicitly here for type checking despite being ass
 STEPS = SETTINGS.get('STEPS')
 PG_HOST = SETTINGS.get('PG_HOST', 'pops.rsginc.com') # Set defaults like this
 DB_SYS = SETTINGS.get('DB_SYS', 'postgresql')
-JOINT_TRIP_BUFFER = SETTINGS.get('JOINT_TRIP_BUFFER', {'DISTANCE': 1000, 'TIME': 15})
+JOINT_TRIP_BUFFER = SETTINGS.get('JOINT_TRIP_BUFFER')
 STUDY_SCHEMA = SETTINGS.get('STUDY_SCHEMA')
 PG_DB = SETTINGS.get('PG_DB')
 PG_PORT = SETTINGS.get('PG_PORT')
@@ -100,6 +100,9 @@ OUTPUT_DIR = SETTINGS.get('OUTPUT_DIR')
 CODES = SETTINGS.get('CODES')
 RESUME_AFTER = SETTINGS.get('RESUME_AFTER')
 IMPUTATION_CONFIGS = SETTINGS.get('IMPUTATION_CONFIGS')
+TIME_INCREMENT = SETTINGS.get('TIME_INCREMENT')
+LOCAL_TIMEZONE = SETTINGS.get('LOCAL_TIMEZONE')
+SCHOOL_TYPE_AGE = SETTINGS.get('SCHOOL_TYPE_AGE')
 
 # Radius of the Earth for Haversine distance calculation
 # R = 3963.19 * 5280 #feet

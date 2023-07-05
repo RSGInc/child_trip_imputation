@@ -18,8 +18,8 @@ COLNAMES = settings.COLUMN_NAMES
 PER_ID_NAME = COLNAMES['PER_ID_NAME']
 TRIP_ID_NAME = COLNAMES['TRIP_ID_NAME']
 HH_ID_NAME = COLNAMES['HH_ID_NAME']
-OLATLON_COLS = [COLNAMES['OLAT'], COLNAMES['OLON']]
-DLATLON_COLS = [COLNAMES['DLAT'], COLNAMES['DLON']]
+OLAT, OLON = COLNAMES['OLAT'], COLNAMES['OLON']
+DLAT, DLON = COLNAMES['DLAT'], COLNAMES['DLON']
 HHMEMBER_PREFIX = COLNAMES['HHMEMBER']
 DTIME_COL = COLNAMES['DTIME']
 OTIME_COL = COLNAMES['OTIME']
@@ -29,11 +29,16 @@ MODE = COLNAMES['MODE']
 JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 
-R = settings.R
-
+# This is ugly but passes the type checking
 assert isinstance(PER_ID_NAME, str), 'PER_ID_NAME not a string'
 assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME not a string'
 assert isinstance(HH_ID_NAME, str), 'HH_ID_NAME not a string'
+assert isinstance(DTIME_COL, str), 'DTIME_COL not a string'
+assert isinstance(OTIME_COL, str), 'OTIME_COL not a string'
+assert isinstance(OLAT, str), 'OLAT not a string'
+assert isinstance(OLON, str), 'OLON not a string'
+assert isinstance(DLAT, str), 'DLAT not a string'
+assert isinstance(DLON, str), 'DLON not a string'
 
 def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, time_threshold: timedelta) -> pd.DataFrame:
     """
@@ -50,10 +55,10 @@ def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, 
     Returns:
         pd.DataFrame: fixed trips dataframe
     """
-    
-    # Setup the dataframe for faster processing
+        
+    # Setup the dataframe for faster processing    
     trim_cols = [PER_ID_NAME, HH_ID_NAME]
-    trim_cols += OLATLON_COLS + DLATLON_COLS 
+    trim_cols += [OLAT, OLON, DLAT, DLON] 
     trim_cols += [OTIME_COL, DTIME_COL, PNUM_COL, DAYNUM_COL, MODE, JOINT_TRIPNUM_COL]    
     # Get non-empty household member columns    
     # trim_cols += trips_df.filter(regex=HHMEMBER_PREFIX).columns.tolist()
@@ -61,7 +66,8 @@ def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, 
     trim_cols += ['corrected_hh_members']
     
     # Pre-index on household_id and day_num for faster lookup
-    trips_df['corrected_hh_members'] = 0
+    trips_df['corrected_hh_members'] = 0    
+    
     hh_trips_df = trips_df[trim_cols].reset_index().set_index([HH_ID_NAME, DAYNUM_COL]).sort_index()
     
     print('Finding unreported joint trips...')
@@ -99,8 +105,8 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
     """
     
     # Convert lat/lon to radians for pairwise haversine distance calculation
-    olatlons = np.radians(hh_trips[OLATLON_COLS].to_numpy())
-    dlatlons = np.radians(hh_trips[DLATLON_COLS].to_numpy())
+    olatlons = np.radians(hh_trips[[OLAT, OLON]].to_numpy())
+    dlatlons = np.radians(hh_trips[[DLAT, DLON]].to_numpy())
     otimes = hh_trips.depart_time.to_numpy()
     dtimes = hh_trips.arrive_time.to_numpy()
     
@@ -109,8 +115,8 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
     dtimedelta = np.abs(dtimes[np.newaxis,:] - dtimes[:,np.newaxis])
     
     # Find distance between origin to origin and destination to destination
-    odist = haversine_distances(olatlons, olatlons)*R        
-    ddist = haversine_distances(dlatlons, dlatlons)*R
+    odist = haversine_distances(olatlons, olatlons)*settings.R
+    ddist = haversine_distances(dlatlons, dlatlons)*settings.R
     
     # Find where distances are below the threshold
     distmat = (odist < distance_threshold) * (ddist < distance_threshold)
@@ -148,9 +154,14 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
         if is_shared_mode and is_unreported:            
             a_col = hh_trips.columns.get_loc(member_b)            
             c_col = hh_trips.columns.get_loc('corrected_hh_members')
-                        
-            hh_trips.iloc[a_row, a_col] = 1                    
-            hh_trips.iloc[a_row, c_col] += 1
+            
+            hh_trips.iloc[a_row, a_col] = 1                              
+            
+            # Doing this weird pass off to avoid type errors
+            val = hh_trips.iloc[a_row, c_col]
+            assert isinstance(val, int) or type(val) == np.int64, f'Expected int, got {type(val)}'                      
+            val += 1            
+            hh_trips.iloc[a_row, c_col] = val
             
 
     if joint_idx.size > 0:
