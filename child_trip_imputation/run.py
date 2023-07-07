@@ -85,56 +85,6 @@ class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):
         # Update the tours table in DB
         DBIO.update_table('tour', tours_df[cols], step_name = 'create_tours')
 
-    def flag_unreported_joint_trips(self) -> None:
-        """
-        Flag all unreported joint trips and update DB object. 
-        """
-        trip_df = DBIO.get_table('trip')
-        assert isinstance(settings.JOINT_TRIP_BUFFER, dict)        
-        assert isinstance(trip_df, pd.DataFrame), f'Trips table is not a DataFrame'
-        
-        kwargs = {'trips_df': trip_df, **settings.JOINT_TRIP_BUFFER}        
-        flagged_trips_df = super(Imputation, self).flag_unreported_joint_trips(**kwargs)
-        
-        # Update the class DBIO object data.
-        DBIO.update_table('trip', flagged_trips_df, step_name = 'flag_unreported_joint_trips')
-        
-        return
-
-    def impute_reported_joint_trips(self) -> None:
-        """
-        Impute all missing reported joint trips and update DB object.
-        """        
-        kwargs = {'persons_df': DBIO.get_table('person'), 'trips_df': DBIO.get_table('trip')}        
-        updated_trips_df = super(Imputation, self).impute_reported_joint_trips(**kwargs)
-        
-        # Update the class DBIO object data.
-        DBIO.update_table('trip', updated_trips_df, step_name = 'impute_reported_joint_trips')
-        
-        return
-
-    def impute_school_trips(self) -> None:
-        """
-        Impute all missing school trips and update DB object.
-        """        
-        
-        assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
-        
-        # hh_df = DBIO.get_table('household')
-        # assert isinstance(hh_df, pd.DataFrame), f'Households table is not a DataFrame'        
-        # kwargs = {
-        #     'households_df': hh_df,
-        #     # 'persons_df': DBIO.get_table('person'),
-        #     # 'trips_df': DBIO.get_table('trip'),
-        #     # **settings.JOINT_TRIP_BUFFER
-        #     }
-        
-        imputed_school_trips_df = super(Imputation, self).impute_school_trips()
-        
-        # Update the class DBIO object data.
-        assert isinstance(imputed_school_trips_df, pd.DataFrame), f'Imputed school trips is not a DataFrame'
-        DBIO.update_table('trip', imputed_school_trips_df, step_name = 'impute_school_trips')
-
     def reconcile_id_sets(self) -> None:
         # some of the ID sequences are inconsistent, so we need to reconcile them
         # E.g., trip_id starts at ...003 but trip_num starts at 1

@@ -116,8 +116,10 @@ class IO:
         
         assert table_exists, f'{table} not in settings.TABLES, loaded in IO object, or in cache log.'        
         
+        # If a specific step is requested, check if it's in the cache log, otherwise raise error
+        assert step is None or step in self.cache_log.index, f'{step} not in cache, if this was in error, check the cache/log.csv.'
+        
         # If has object and step is complete, otherwise attempt load from cache or POPS
-        # or step in self.cache_log.index.to_list()
         if hasattr(self, table) and (step is None or step == self.current_step):
             df = getattr(self, table)
             

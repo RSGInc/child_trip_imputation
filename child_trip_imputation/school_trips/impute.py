@@ -43,6 +43,7 @@ class ImputeSchoolTrips:
         # Initialize trip counter with latest trips table
         TRIP_COUNTER.initialize(trips_df)
         
+        new_trips = []
         # Level 1 outer loop on households, initialize Household manager
         for hh_id, hh in tqdm(households_df.groupby(level=0)):
             Household = HouseholdManagerClass(hh)            
@@ -55,8 +56,7 @@ class ImputeSchoolTrips:
                     # Skip if imputation is not required for this person-day
                     if self.is_missing_school_trip(Day, person):
                         # Impute missing school trips
-                        self.school_trip_imputation(Day)
-                
+                        new_trips.append(self.school_trip_imputation(Day))
                     # # Level 4 loop over tours to populate tours
                     # for tour_id, tour in Day.get_related('tour').groupby(level=0):
                     #     # There is no tour table yet, create an empty dummy to be populated
@@ -65,6 +65,10 @@ class ImputeSchoolTrips:
                     #     Tour.populate_tour(person_day_tour_trips)
                     
         print('Done')
+        
+        imputed_school_trips_df = pd.concat(new_trips) # This probably needs fixing.
+        DBIO.update_table('trip', imputed_school_trips_df, step_name = 'impute_school_trips')
+        
                         
     def school_trip_imputation(self, Day: DayManagerClass) -> None:
         # Initialize a new trip manager for the child

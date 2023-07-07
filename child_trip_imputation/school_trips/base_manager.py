@@ -30,9 +30,7 @@ class ManagerClass:
     
     It contains the DBIO object, which is used to fetch and update data from the "database",
     so there is no need to re-reference the DBIO object in sub managers, it is inherited here.
-    
-    Since the DBIO object is part of this base class, initializes other static objects here as well,
-    such as trip counters, config tables, and trip departure/arrival time distributions.
+
     """
     
     
@@ -128,7 +126,7 @@ class ManagerClass:
         
         # Update the new trip with the values
         new_record.update(field_values)
-                            
+
         return new_record
         
     

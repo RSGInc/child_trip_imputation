@@ -4,6 +4,7 @@ from datetime import timedelta
 
 # Internal imports
 import settings
+from utils.io import DBIO
 from utils.misc import cat_joint_trip_id
 from utils.trip_counter import TripCounter, TRIP_COUNTER
 from nonproxy.populator import NonProxyTripPopulator
@@ -18,8 +19,41 @@ JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 
 class ImputeNonProxyTrips:
+    
+    def impute_proxy_trips(self) -> None:
+        # Flag all unreported joint trips and update DB object.
+        try:
+            # Try to get trips for the current step
+            trip_df = DBIO.get_table('trip', step = 'flag_unreported_joint_trips')
+        except AssertionError:
+            # Otherwise, get latest trips table and run the step            
+            assert isinstance(settings.JOINT_TRIP_BUFFER, dict)
+            
+            kwargs = {'trips_df': DBIO.get_table('trip'), **settings.JOINT_TRIP_BUFFER}        
+            flagged_trips_df = self.flag_unreported_joint_trips(**kwargs)
+            
+            # Update the class DBIO object data.
+            DBIO.update_table('trip', flagged_trips_df, step_name = 'flag_unreported_joint_trips')
+        
+        # Impute all missing reported joint trips and update DB object.        
+        try:
+            # Try to get trips for the current step
+            trip_df = DBIO.get_table('trip', step = 'impute_reported_joint_trips')
+            
+        except AssertionError:
+            # Otherwise, get latest trips table and run the step
+            kwargs = {'persons_df': DBIO.get_table('person'), 'trips_df': DBIO.get_table('trip')}        
+            updated_trips_df = self.impute_reported_joint_trips(**kwargs)
+            
+            # Update the class DBIO object data.
+            DBIO.update_table('trip', updated_trips_df, step_name = 'impute_reported_joint_trips')
+        
+        return
+    
     def joint_trip_member_table(self, persons_df: pd.DataFrame, trips_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
+        TODO: This is a static method and could be moved to utils?
+        
         This function creates a table of joint trips from the trips table.
         A joint trip is defined as a trip that is reported as being made by more than one person. 
         The table is flattened so that each row is a joint trip member.
@@ -110,7 +144,7 @@ class ImputeNonProxyTrips:
     def impute_reported_joint_trips(self, persons_df, trips_df):
         
         # Initialize trip counter to this point
-        TRIP_COUNTER.initialize(trips_df, persons_df)       
+        TRIP_COUNTER.initialize(trips_df)       
             
         # 2. Flatten and separate trip table into joint and non-joint trips
         joint_trips, nonjoint_trips = self.joint_trip_member_table(persons_df, trips_df)    
