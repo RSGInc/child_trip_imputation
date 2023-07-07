@@ -46,6 +46,7 @@ TRIPS_DF = DBIO.get_table('trip')
 PERSON_DF = DBIO.get_table('person')
 assert isinstance(TRIPS_DF, pd.DataFrame), 'TRIPS_DF must be a DataFrame'
 assert isinstance(PERSON_DF, pd.DataFrame), 'PERSON_DF must be a DataFrame'
+assert isinstance(OTIME, str), 'OTIME must be a string'
 
 DEP_FREQ, DUR_FREQ = get_dep_arr_dist(TRIPS_DF, PERSON_DF, method='KDE').values()
 

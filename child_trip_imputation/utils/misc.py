@@ -156,5 +156,7 @@ def get_dep_arr_dist(trips_df: pd.DataFrame, persons_df: pd.DataFrame, method: s
                 'duration_seconds': pd.Series(dur_dens, index=pd.to_timedelta(dur_span, unit='s'), name='duration_seconds')
             }
         
+        # Set bounds
+        
                 
         return time_dist

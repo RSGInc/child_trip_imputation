@@ -39,6 +39,7 @@ assert isinstance(OLAT, str), 'OLAT not a string'
 assert isinstance(OLON, str), 'OLON not a string'
 assert isinstance(DLAT, str), 'DLAT not a string'
 assert isinstance(DLON, str), 'DLON not a string'
+assert isinstance(MODE, str), 'MODE not a string'
 
 def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, time_threshold: timedelta) -> pd.DataFrame:
     """
