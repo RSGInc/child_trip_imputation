@@ -1,4 +1,3 @@
-from child_trip_imputation.run import ChildTripImputation
+from child_trip_imputation.run import Imputation
 
-
-ChildTripImputation().impute()
+Imputation()
