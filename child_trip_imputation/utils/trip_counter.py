@@ -7,11 +7,11 @@ from utils.misc import cat_joint_trip_id, cat_trip_id
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 
 COLNAMES = settings.COLUMN_NAMES
-PER_ID_NAME = COLNAMES['PER_ID_NAME']
-TRIP_ID_NAME = COLNAMES['TRIP_ID_NAME']
-HH_ID_NAME = COLNAMES['HH_ID_NAME']
+PER_ID_NAME = COLNAMES['PER_ID']
+TRIP_ID_NAME = COLNAMES['TRIP_ID']
+HH_ID_NAME = COLNAMES['HH_ID']
 TRIPNUM_COL = COLNAMES['TRIPNUM']
-JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 
 
@@ -25,7 +25,7 @@ class TripCounter:
         if trips_df:
             self.initialize(trips_df, person_df)
     
-    def initialize(self, trips_df: pd.DataFrame, person_df: pd.DataFrame|None) -> None:
+    def initialize(self, trips_df: pd.DataFrame, person_df: pd.DataFrame|None = None) -> None:
         """
         Initialize the trip counter and joint trip counter DataFrames.
         Can be used to reset the trip counter if needed.
@@ -45,15 +45,18 @@ class TripCounter:
         self.trip = trip_grp.aggregate({TRIPNUM_COL: 'max', TRIP_ID_NAME: 'max'})
         self.joint_trip = joint_trip_grp.aggregate({JOINT_TRIPNUM_COL: 'max', JOINT_TRIP_ID_NAME: 'max'})
         
-        # # Insert 0 trip number for persons with 0 trips
-        # self.trip = self.trip.reindex(person_df.index, fill_value=0)
-        # self.joint_trip = self.joint_trip.reindex(person_df.index, fill_value=0)        
-          
-        # zero_trips = self.trip[self.trip.trip_id == 0].index
-        # zero_joint_trips = self.joint_trip[self.joint_trip.joint_trip_id == 0].index
-        
-        # self.trip[zero_trips] = self.trip[zero_trips].reset_index().apply(cat_trip_id, axis=1)
-        # self.joint_trip[zero_joint_trips] = self.joint_trip[zero_joint_trips].reset_index().apply(cat_joint_trip_id, axis=1)
+        # Optionally pre-insert 0 trip number for persons with 0 trips and households with 0 joint trips
+        # If not, a person/household will be created when iterated.
+        if person_df is not None:
+            assert isinstance(person_df, pd.DataFrame), 'person_df must be a DataFrame'
+            self.trip = self.trip.reindex(person_df.index, fill_value=0)
+            self.joint_trip = self.joint_trip.reindex(person_df.index, fill_value=0)        
+            
+            zero_trips = self.trip[self.trip.trip_id == 0].index
+            zero_joint_trips = self.joint_trip[self.joint_trip.joint_trip_id == 0].index
+            
+            self.trip[zero_trips] = self.trip[zero_trips].reset_index().apply(cat_trip_id, axis=1)
+            self.joint_trip[zero_joint_trips] = self.joint_trip[zero_joint_trips].reset_index().apply(cat_joint_trip_id, axis=1)
         
         return        
     

@@ -22,7 +22,7 @@ from school_trips.impute import ImputeSchoolTrips
 # Extract column names for origin and destination lat/lon
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
-JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID']
 
 
 class Imputation(ImputeNonProxyTrips, ImputeSchoolTrips):

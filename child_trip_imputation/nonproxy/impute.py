@@ -14,7 +14,7 @@ from nonproxy.timespace_buffer import fix_existing_joint_trips
 assert isinstance(settings.COLUMN_NAMES, dict), 'COLUMN_NAMES not a dict'
 COLNAMES = settings.COLUMN_NAMES
 
-JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 
 class ImputeNonProxyTrips:
@@ -52,11 +52,11 @@ class ImputeNonProxyTrips:
         print(f"Joint trips to impute: {deficit_n_trips}")  
             
         # Drop non-joint trips
-        assert isinstance(COLNAMES['TRIP_ID_NAME'], str), 'TRIP_ID_NAME not a string'
+        assert isinstance(COLNAMES['TRIP_ID'], str), 'TRIP_ID name not a string'
 
         member_count = trips.sum(axis=1)
-        nonjoint_trip_ids = trips.loc[member_count == 1].index.get_level_values(COLNAMES['TRIP_ID_NAME'])    
-        joint_trip_ids = trips.loc[member_count > 1].index.get_level_values(COLNAMES['TRIP_ID_NAME'])   
+        nonjoint_trip_ids = trips.loc[member_count == 1].index.get_level_values(COLNAMES['TRIP_ID'])    
+        joint_trip_ids = trips.loc[member_count > 1].index.get_level_values(COLNAMES['TRIP_ID'])   
             
         # Flatten the table
         trips = pd.melt(
@@ -75,10 +75,10 @@ class ImputeNonProxyTrips:
         trips.person_num = trips.person_num.str.replace(COLNAMES['HHMEMBER'], '').astype(int)
             
         # Create member ID table
-        member_id = persons_df[[COLNAMES['HH_ID_NAME'], COLNAMES['PNUM']]].reset_index().rename(columns={COLNAMES['PER_ID_NAME']: 'hh_member_id'})
+        member_id = persons_df[[COLNAMES['HH_ID'], COLNAMES['PNUM']]].reset_index().rename(columns={COLNAMES['PER_ID']: 'hh_member_id'})
         
         # Join person id onto member-trip table
-        trips = trips.merge(member_id, on=[COLNAMES['HH_ID_NAME'], COLNAMES['PNUM']], how='left')
+        trips = trips.merge(member_id, on=[COLNAMES['HH_ID'], COLNAMES['PNUM']], how='left')
         trips = trips.rename(columns={COLNAMES['PNUM']: 'hh_member_num'})
 
         # Separate joint and non-joint trips    
@@ -127,15 +127,15 @@ class ImputeNonProxyTrips:
             ]
 
         # Trim and sort index for performance
-        assert isinstance(COLNAMES['TRIP_ID_NAME'], str), 'TRIP_ID_NAME not a string'
-        unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=[JOINT_TRIPNUM_COL, COLNAMES['DAY_ID_NAME']]).sort_values(COLNAMES['TRIP_ID_NAME'])
+        assert isinstance(COLNAMES['TRIP_ID'], str), 'TRIP_ID name not a string'
+        unlabeled_joint_trips = unlabeled_joint_trips.drop(columns=[JOINT_TRIPNUM_COL, COLNAMES['DAY_ID']]).sort_values(COLNAMES['TRIP_ID'])
         
         # Initialize trip populator class to hold the data and manage trip counts
         Populator = NonProxyTripPopulator(persons_df, trips_df)
         
         new_trips_ls = []
         # idx_names = [TRIP_ID_NAME, HH_ID_NAME, DAYNUM_COL]
-        idx_names = [COLNAMES[x] for x in ['TRIP_ID_NAME', 'HH_ID_NAME', 'DAYNUM']]
+        idx_names = [COLNAMES[x] for x in ['TRIP_ID', 'HH_ID', 'DAYNUM']]
 
         # For each household member trip that is not self reported, create a new joint trip
         print("Imputing missing proxy reported joint trips...")
@@ -152,7 +152,7 @@ class ImputeNonProxyTrips:
                 new_trips_ls.append(new_trip)
         
         new_trips_df = pd.concat(new_trips_ls, axis=1, ignore_index=False).T
-        new_trips_df.index.name = COLNAMES['TRIP_ID_NAME']
+        new_trips_df.index.name = COLNAMES['TRIP_ID']
         
         assert len(set(new_trips_df.index).intersection(trips_df.index)) == 0, "New trips should not have the same index as existing trips"
         

@@ -15,7 +15,8 @@ assert isinstance(settings.CODES, dict)
 CHILD_AGE_COL, CHILD_AGE_CODES = settings.get_codes('CHILD_AGE')
 PRESCHOOL_AGE_COL, PRESCHOOL_AGE_CODES = settings.get_codes('PRESCHOOL_AGE')
 PRESCHOOL_TYPE_COL, PRESCHOOL_TYPE_CODES = settings.get_codes('PRESCHOOL_TYPES')
-SCHOOL_PURPOSES_COL, SCHOOL_PURPOSES_CODES = settings.get_codes('SCHOOL_PURPOSES')
+SCHOOL_PURPOSES_COL, SCHOOL_PURPOSES_CODES = settings.get_codes(('SCHOOL_PURPOSES', 'PURPOSE'))
+SCHOOL_PURPCAT_COL, SCHOOL_PURPCAT_CODES = settings.get_codes(('SCHOOL_PURPOSES', 'PURPOSE_CATEGORY'))
 ESCORT_PURPOSE_COL, ESCORT_PURPOSE_CODES = settings.get_codes('ESCORT_PURPOSES')
 
 
@@ -30,12 +31,14 @@ class ImputeSchoolTrips:
     def impute_school_trips(self) -> None:        
         
         households_df = DBIO.get_table('household')
-        # persons_df = DBIO.get_table('person')
-        trips_df = DBIO.get_table('trip')
+        persons_df = DBIO.get_table('person')
+        trips_df = DBIO.get_table('trip')        
+        day_df = DBIO.get_table('day')
         
         assert isinstance(households_df, pd.DataFrame), 'household table is not a DataFrame'
         assert isinstance(trips_df, pd.DataFrame), 'trip table is not a DataFrame'
-        # assert isinstance(persons_df, pd.DataFrame), 'person table is not a DataFrame'        
+        assert isinstance(persons_df, pd.DataFrame), 'person table is not a DataFrame'        
+        assert isinstance(day_df, pd.DataFrame), 'day table is not a DataFrame'
         
         # Initialize trip counter with latest trips table
         TRIP_COUNTER.initialize(trips_df)
@@ -86,10 +89,10 @@ class ImputeSchoolTrips:
         person_trips = Day.Person.get_related('trip', on = ['hh_id', 'person_num'])        
         altday_trips = person_trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES)
         
-        assert isinstance(Day.Person.data, pd.DataFrame), f'Class data not a DataFrame, expecting DataFrame here'        
-        is_18plus = ~Day.Person.data[CHILD_AGE_COL].isin(CHILD_AGE_CODES)
+        assert isinstance(Day.Person.data, pd.Series), f'Class data not a DataFrame, expecting DataFrame here'        
+        is_18plus = Day.Person.data[CHILD_AGE_COL] not in CHILD_AGE_CODES
         
-        if altday_trips.any() and is_18plus.all():            
+        if altday_trips.any() and is_18plus:            
             self.new_trips.append(
                 Trip.impute_from_altday(person_trips[altday_trips].iloc[0])
             )
@@ -127,7 +130,9 @@ class ImputeSchoolTrips:
         
         # Skip if person (child) already has school destination
         person_day_trips = Day.get_related('trip', on=['hh_id', 'day_num'])
-        if person_day_trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES).any():
+        
+        if person_day_trips[SCHOOL_PURPCAT_COL].isin(SCHOOL_PURPCAT_CODES).any():        
+        # if person_day_trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES).any():
             return False
         
         return True

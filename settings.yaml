@@ -56,7 +56,10 @@ CODES:
     school_type: [2, 3]
 # Code for K-12 and preschool trip purposes
   SCHOOL_PURPOSES:
-    d_purpose: [3, 21, 26]
+    PURPOSE:
+      d_purpose: [3, 21, 26]
+    PURPOSE_CATEGORY:
+      d_purpose_category: [4, 5]
 # Purpose code for home
   HOME_PURPOSE: 
     ORIGIN:
@@ -67,17 +70,19 @@ CODES:
   ESCORT_PURPOSES:
     d_purpose: [6]
 
-SCHOOL_TYPE_AGE:
-  COLS:
-    - d_purpose
-    - age
-  26: [1]     # Preschool <5 years
-  21: [2, 3]  # K-12 school 5-18 years
-  3: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] # All other ages are general "attend school/class"
+# Values used for imputation
+IMPUTED_SCHOOL_PURPOSE_CAT: 4 # The default purpose category for school trips
+SCHOOL_PURPOSE_AGE:
+    26: [1]     # Preschool <5 years
+    21: [2, 3]  # K-12 school 5-18 years
+    3: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14] # All other ages are general "attend school/class"
 
 JOINT_TRIP_BUFFER:
   DISTANCE: 250 # Meters
   TIME: 15 # Minutes
+
+# Maximum distance to school if imputing
+MAX_SCHOOL_DIST: 10000 # Meters
 
 TIME_INCREMENT: 30Min
 DURATION_INCREMENT: 5Min
@@ -95,6 +100,8 @@ COLUMN_NAMES:
   OLON: o_lon
   DLAT: d_lat
   DLON: d_lon
+  HOMELAT: home_lat
+  HOMELON: home_lon
   OTIME: depart_time
   DTIME: arrive_time
   OHOUR: depart_hour
@@ -103,6 +110,6 @@ COLUMN_NAMES:
   MODE: mode_type
   TRAVELDATE: travel_date
   DRIVER: driver
-  JOINT_TRIP_ID_NAME: joint_trip_id
+  JOINT_TRIP_ID: joint_trip_id
   JOINT_TRIPNUM: joint_trip_num
 

@@ -102,7 +102,10 @@ RESUME_AFTER = SETTINGS.get('RESUME_AFTER')
 IMPUTATION_CONFIGS = SETTINGS.get('IMPUTATION_CONFIGS')
 TIME_INCREMENT = SETTINGS.get('TIME_INCREMENT')
 LOCAL_TIMEZONE = SETTINGS.get('LOCAL_TIMEZONE')
-SCHOOL_TYPE_AGE = SETTINGS.get('SCHOOL_TYPE_AGE')
+SCHOOL_PURPOSE_AGE = SETTINGS.get('SCHOOL_PURPOSE_AGE')
+IMPUTED_SCHOOL_PURPOSE_CAT = SETTINGS.get('IMPUTED_SCHOOL_PURPOSE_CAT')
+MAX_SCHOOL_DIST = SETTINGS.get('MAX_SCHOOL_DIST')
+
 
 # Radius of the Earth for Haversine distance calculation
 # R = 3963.19 * 5280 #feet
@@ -110,10 +113,10 @@ R = 6378100 #meters
 
  # Column name defaults
 COLUMN_NAMES = {
-    'PER_ID_NAME': get_index_name('person'),
-    'TRIP_ID_NAME': get_index_name('trip'),
-    'HH_ID_NAME': get_index_name('household'),
-    'DAY_ID_NAME': get_index_name('day'),
+    'PER_ID': get_index_name('person'),
+    'TRIP_ID': get_index_name('trip'),
+    'HH_ID': get_index_name('household'),
+    'DAY_ID': get_index_name('day'),
     }
 
 COLUMN_NAMES_UPDATE = SETTINGS.get('COLUMN_NAMES', {})

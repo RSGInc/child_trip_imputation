@@ -24,9 +24,22 @@ assert isinstance(settings.IMPUTATION_CONFIGS, dict), 'IMPUTATION_CONFIGS not a 
 
 COLNAMES = settings.COLUMN_NAMES
 COL_ACTIONS_PATH = settings.IMPUTATION_CONFIGS.get('impute_school_trips')
-SCHOOL_PURPOSES_COL, SCHOOL_PURPOSES_CODES = settings.get_codes('SCHOOL_PURPOSES')
-SCHOOL_TYPE_AGE = settings.SCHOOL_TYPE_AGE
+SCHOOL_PURPOSES_COL, SCHOOL_PURPOSES_CODES = settings.get_codes(('SCHOOL_PURPOSES', 'PURPOSE'))
+SCHOOL_PURPCAT_COL, SCHOOL_PURPCAT_CODES = settings.get_codes(('SCHOOL_PURPOSES', 'PURPOSE_CATEGORY'))
+IMPUTED_SCHOOL_PURPOSE_CAT = settings.IMPUTED_SCHOOL_PURPOSE_CAT
 
+DLAT, DLON = COLNAMES['DLAT'], COLNAMES['DLON']
+OLAT, OLON = COLNAMES['OLAT'], COLNAMES['OLON']
+HOMELAT, HOMELON = COLNAMES['HOMELAT'], COLNAMES['HOMELON']
+DAY_ID_NAME = COLNAMES['DAY_ID']
+PER_ID_NAME = COLNAMES['PER_ID']
+TRIP_ID_NAME = COLNAMES['TRIP_ID']
+AGE_COL = COLNAMES['AGE']
+TRIPNUM_COL = COLNAMES['TRIPNUM']
+OTIME = COLNAMES['OTIME']
+
+SCHOOL_PURPOSE_AGE = settings.SCHOOL_PURPOSE_AGE
+IMPUTED_PURPCAT = settings.IMPUTED_SCHOOL_PURPOSE_CAT
 
 # Aggregate trip times for school trips for sampling
 TRIPS_DF = DBIO.get_table('trip')
@@ -43,9 +56,9 @@ assert os.path.isfile(COL_ACTIONS_PATH), f'File {COL_ACTIONS_PATH} does not exis
 # Read in actions config table
 ACTIONS = pd.read_csv(COL_ACTIONS_PATH)
 
-# TIMEZONES 
+# TIMEZONES
 LOCAL_TZ = settings.LOCAL_TIMEZONE
-DATA_TZ = str(TRIPS_DF[COLNAMES['OTIME']].dt.tz)
+DATA_TZ = str(TRIPS_DF[OTIME].dt.tz)
         
 class TripManagerClass(ManagerClass):
     # Tour manager is not fully implemented yet, so optional for now
@@ -96,7 +109,7 @@ class TripManagerClass(ManagerClass):
         - Need to create a return trip home using the same mode at the end of the school day if one does not already exist.
         """
         
-        assert isinstance(self.Day.Person.data, pd.DataFrame), 'Day.Person.data must be a DataFrame'
+        assert isinstance(self.Day.Person.data, pd.Series), 'Day.Person.data must be a Series'
         
         # # Initialize new dummy "host" trip on that day for values to replace
         # new_trip = self.Day.get_related('trip', on=['day_num', 'person_id'])
@@ -105,15 +118,16 @@ class TripManagerClass(ManagerClass):
         #     new_trip = self.Day.get_related('trip', on=['person_id'])               
              
         # assert not new_trip.empty, 'No trip on day'
-        assert isinstance(self.Day.data, pd.DataFrame), 'Day.data must be a DataFrame'
+        assert isinstance(self.Day.data, pd.Series), 'Day.data must be a Series'
+        assert isinstance(DAY_ID_NAME, str), 'DAY_ID_NAME must be a string'
         
         new_trip = pd.Series()
         # new_trip = new_trip.iloc[0].copy()
-        new_trip['day_num'] = self.Day.data['day_num'].iloc[0]
-        new_trip['day_id']  = self.Day.data.index[0]
+        new_trip['day_num'] = self.Day.data['day_num']        
+        new_trip[DAY_ID_NAME]  = self.Day.data[DAY_ID_NAME]
             
         # Reserved columns - meaning they are not checked for in the trip_column_actions.csv file        
-        reserved_cols = [COLNAMES['JOINT_TRIPNUM'], COLNAMES['JOINT_TRIP_ID_NAME'], 'tour_id', 'tour_num', 'tour_type']
+        reserved_cols = [COLNAMES['JOINT_TRIPNUM'], COLNAMES['JOINT_TRIP_ID'], 'tour_id', 'tour_num', 'tour_type']
         actions_dict = {i: df.colname for i, df in ACTIONS.groupby('impute_new_school_trip')}
         
         # Populate new trip
@@ -121,12 +135,12 @@ class TripManagerClass(ManagerClass):
         
         return new_trip
     
-    def sample_times(self, **kwargs) -> pd.Series:
+    def sample_times(self, **kwargs) -> dict:
         
         fields = kwargs.get('fields')
         
         assert isinstance(fields, list), 'Fields must be a list'
-        assert isinstance(self.Day.data, pd.DataFrame), 'Day.data must be a DataFrame'
+        assert isinstance(self.Day.data, pd.Series), 'Day.data must be a DataFrame'
         assert isinstance(LOCAL_TZ, str), 'TIME_ZONE must be a string'
 
         # Make random choice for departure and duration times
@@ -134,7 +148,7 @@ class TripManagerClass(ManagerClass):
         duration_time = random.choices(DUR_FREQ.index, weights=DUR_FREQ, k=1)[0]
         
         # Add date component
-        depart_date = self.Day.data['travel_date'].iloc[0]
+        depart_date = self.Day.data['travel_date']
         depart_time = datetime.combine(depart_date, depart_time)
         
         # Set local timezone, then convert to UTC to match the rest of the data
@@ -162,9 +176,9 @@ class TripManagerClass(ManagerClass):
         
         assert set(fields) - set(result.keys()) == set(), f'Missing fields: {set(fields) - set(result.keys())}'
                 
-        return pd.Series(result)
+        return result
             
-    def copy_from(self, table: str, **kwargs) -> pd.Series:
+    def copy_from(self, table: str, **kwargs) -> dict:
         """
         Generic method to copy fields from a table to the new record.
 
@@ -201,102 +215,131 @@ class TripManagerClass(ManagerClass):
         
         assert set(fields) - set(host.index) == set(), f'Fields {set(fields) - set(host.index)} must be in host_record'
         
-        return host[fields]        
+        return host[fields].to_dict()
     
-    def copy_from_day(self, **kwargs) -> pd.Series:
+    def copy_from_day(self, **kwargs) -> dict:
         return self.copy_from(table='day', **kwargs)
         
-    def copy_from_person(self, **kwargs) -> pd.Series:
+    def copy_from_person(self, **kwargs) -> dict:
         return self.copy_from(table='person', **kwargs)
     
-    def copy_from_household(self, **kwargs) -> pd.Series:
+    def copy_from_household(self, **kwargs) -> dict:
         return self.copy_from(table='household', **kwargs)
     
-    def copy_from_host(self, **kwargs) -> pd.Series:
+    def copy_from_host(self, **kwargs) -> dict:
         return self.copy_from(table='host', **kwargs)
         
-    def generate_trip_id(self, **kwargs) -> pd.Series:             
-
-        return pd.Series()
+    def generate_trip_id(self, **kwargs) -> dict:             
+        assert isinstance(self.Day.Person.data, pd.Series), 'Day.Person.data must be a Series'         
+        assert isinstance(PER_ID_NAME, str), 'PER_ID_NAME must be a string'
+        assert isinstance(TRIPNUM_COL, str), 'TRIPNUM_COL must be a string'
+        
+        person_id = int(self.Day.Person.data[PER_ID_NAME])     
+        
+        return {TRIP_ID_NAME: TRIP_COUNTER.trip.loc[person_id, TRIPNUM_COL]}
     
-    def update_trip_num(self, **kwargs) -> int|str: 
+    def update_trip_num(self, **kwargs) -> dict: 
         """
         Update the trip number for the new trip.
 
         Returns:
             int|str: returns the new trip number
         """
+        assert isinstance(self.Day.Person.data, pd.Series), 'Day.data must be a DataFrame'
+        assert isinstance(PER_ID_NAME, str), 'PER_ID_NAME must be a string'
+        assert isinstance(TRIPNUM_COL, str), 'TRIPNUM_COL must be a string'
+        assert isinstance(TRIP_ID_NAME, str), 'TRIP_ID_NAME must be a string'
         
-        person_id = kwargs['host_record'][COLNAMES['PER_ID_NAME']]
-        # day_num = kwargs['host_trip'][DAYNUM_COL]
+        person_id = int(self.Day.Person.data[PER_ID_NAME])
+        assert isinstance(person_id, (int, str, np.integer)), 'Person ID must be an integer'
         
-        return TRIP_COUNTER.iterate_counter('trip', person_id)
+        trip_num = TRIP_COUNTER.iterate_counter('trip', person_id)
+        trip_id = TRIP_COUNTER.trip.loc[person_id, TRIP_ID_NAME]
+        
+        return {TRIPNUM_COL: trip_num, TRIP_ID_NAME: trip_id}
     
-    def find_school_location(self, **kwargs) -> pd.Series:
-            
+    def get_school_location(self, **kwargs) -> dict:
+
+        assert isinstance(DLAT, str) and isinstance(DLON, str), 'DLAT and DLON must be a string'
+        assert isinstance(OLAT, str) and isinstance(OLON, str), 'OLAT and OLON must be a string'
+        assert isinstance(HOMELAT, str) and isinstance(HOMELON, str), 'HOMELAT and HOMELON must be a string'
+     
         fields = kwargs.get('fields')
         assert isinstance(fields, list), 'Fields must be a list'
                 
         # If they have a school purpose in another trip, use that
         trips = self.Day.Person.get_related('trip')
-        school_trips = trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES)
+        school_trips = trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES).values
 
         # If they have an existing school location in another trip, use that
-        if school_trips.any():            
-            return trips.loc[school_trips, fields].iloc[0]  
+        if school_trips.any():
+            return trips.loc[school_trips, fields].iloc[0].to_dict()
         
         # Otherwise find nearest school location of the same type
         trips_df =  DBIO.get_table('trip')
         assert isinstance(trips_df, pd.DataFrame), 'Trips must be a DataFrame'
+        assert isinstance(self.Day.Person.Household.data, pd.Series), 'Class manager household must be a DataFrame'
         
+        # Find persons with same school type, then get their trips
         person_shared_schools = self.Day.Person.get_related('person', 'school_type')        
-        trip_shared_schools = trips_df[trips_df[COLNAMES['PER_ID_NAME']].isin(person_shared_schools.index)]
-        
-        # # Convert lat/lon to radians for pairwise haversine distance calculation
-        # olatlons = np.radians(hh_trips[[OLAT, OLON]].to_numpy())
-        # dlatlons = np.radians(hh_trips[[DLAT, DLON]].to_numpy())
-        
-        # # Find distance between origin to origin and destination to destination
-        # odist = haversine_distances(olatlons, olatlons)*settings.R        
-        # ddist = haversine_distances(dlatlons, dlatlons)*settings.R
+        trip_shared_schools = trips_df[trips_df[PER_ID_NAME].isin(person_shared_schools.index)]        
                
+        # Convert lat/lon to radians for pairwise haversine distance calculation
+        olatlons = self.Day.Person.Household.data[[HOMELAT, HOMELON]].astype(float).to_numpy()
+        olatlons = np.radians(np.expand_dims(olatlons, axis=0))            
+        dlatlons = np.radians(trip_shared_schools[[DLAT, DLON]].to_numpy())
+        
+        # Find distances between home and known school locations
+        dist = haversine_distances(olatlons, dlatlons)*settings.R
+        
+        assert isinstance(settings.MAX_SCHOOL_DIST, (int, float)), 'MAX_SCHOOL_DIST must be a number'
+        # Take the minimum distance, if any meet criteria        
+        if np.any(dist < settings.MAX_SCHOOL_DIST):
+            return trip_shared_schools.iloc[np.argmin(dist)][fields].to_dict()
                
         # Otherwise return nan
-        return pd.Series({field: np.nan for field in fields})
+        return {field: np.nan for field in fields}
         
-    
-    def get_purpose(self, **kwargs) -> int|str:
+    def get_purpose(self, **kwargs) -> dict:
+        
+        assert isinstance(self.Day.Person.data, pd.Series), 'Class manager person must be a DataFrame'
+        assert isinstance(AGE_COL, str), 'AGE_COL must be a string'
+        assert isinstance(SCHOOL_PURPOSES_COL, str), 'SCHOOL_PURPOSES_COL must be a string'
+        
         # If they have a school purpose in another trip, use that
         trips = self.Day.Person.get_related('trip')
-        school_trips = trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES)
+        # school_trips = trips[SCHOOL_PURPOSES_COL].isin(SCHOOL_PURPOSES_CODES)        
+        school_trips = trips[SCHOOL_PURPCAT_COL].isin(SCHOOL_PURPCAT_CODES)      
                 
         if school_trips.any():
-            purpose = trips.loc[school_trips, SCHOOL_PURPOSES_COL].iloc[0]            
-            assert isinstance(purpose, str|int), 'Purpose must be a string or integer'            
-            return purpose
-            
-        
-        # Otherwise purpose by age        
-        self.Day.Person.data[COLNAMES['AGE']]
-        
-        return
-        
-        
-    
-    def update_first_date(self, **kwargs):
+            purpose = trips.loc[school_trips, SCHOOL_PURPOSES_COL]            
+            return {SCHOOL_PURPOSES_COL: purpose, SCHOOL_PURPCAT_COL: IMPUTED_SCHOOL_PURPOSE_CAT}
+                    
+        # Otherwise get purpose by age, loop thru the purpose type by age and return the first match
+        assert isinstance(SCHOOL_PURPOSE_AGE, dict), 'SCHOOL_PURPOSE_AGE must be a dictionary'
+        for purpose, ages in SCHOOL_PURPOSE_AGE.items():
+            assert isinstance(ages, list), 'Ages must be a list'
+            if self.Day.Person.data[AGE_COL] in ages:
+                return {SCHOOL_PURPOSES_COL: purpose, SCHOOL_PURPCAT_COL: IMPUTED_SCHOOL_PURPOSE_CAT}
+
+                
+        # All else return nan        
+        return {SCHOOL_PURPOSES_COL: np.nan, SCHOOL_PURPCAT_COL: IMPUTED_SCHOOL_PURPOSE_CAT}
+             
+    def update_first_date(self, **kwargs) -> dict:
         """
         Update the first date for the new trip. Takes the minimum date from the member's trips and the host trip.
 
         Returns:
             datetime object: The first trip date
         """
-        return self.Day.Person.get_related('trip')[COLNAMES['TRAVELDATE']].min()
+        return {COLNAMES['TRAVELDATE']: self.Day.Person.get_related('trip')[COLNAMES['TRAVELDATE']].min()}
     
-    def update_last_date(self, **kwargs):
+    def update_last_date(self, **kwargs) -> dict:
         """
         Update the last date for the new trip. Takes the maximum date from the member's trips and the host trip.
 
         Returns:
             datetime object: The last trip date
         """
-        return self.Day.Person.get_related('trip')[COLNAMES['TRAVELDATE']].max()
+        return {COLNAMES['TRAVELDATE']: self.Day.Person.get_related('trip')[COLNAMES['TRAVELDATE']].max()}

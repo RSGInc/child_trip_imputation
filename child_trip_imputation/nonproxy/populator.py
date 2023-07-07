@@ -12,14 +12,14 @@ assert isinstance(settings.IMPUTATION_CONFIGS, dict), 'IMPUTATION_CONFIGS not a 
 
 COLNAMES = settings.COLUMN_NAMES
 
-PER_ID_NAME = COLNAMES['PER_ID_NAME']
-TRIP_ID_NAME = COLNAMES['TRIP_ID_NAME']
-HH_ID_NAME = COLNAMES['HH_ID_NAME']
+PER_ID_NAME = COLNAMES['PER_ID']
+TRIP_ID_NAME = COLNAMES['TRIP_ID']
+HH_ID_NAME = COLNAMES['HH_ID']
 DAYNUM_COL = COLNAMES['DAYNUM']
 TRIPNUM_COL = COLNAMES['TRIPNUM']
 TRAVELDATE_COL = COLNAMES['TRAVELDATE']
 DRIVER_COL = COLNAMES['DRIVER']
-JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID_NAME']
+JOINT_TRIP_ID_NAME = COLNAMES['JOINT_TRIP_ID']
 JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 COL_ACTIONS_PATH = settings.IMPUTATION_CONFIGS.get('impute_reported_joint_trips')
 
@@ -68,7 +68,7 @@ class NonProxyTripPopulator:
         # Update the trip id        
         # Simply concatenating the ID is problematic because the trip number is inconsistent with trip_num
         # Need to pull the new trip_id from the trip_counter and joint_trip_counter
-        assert isinstance(TRIP_ID_NAME, str), f'TRIP_ID_NAME {TRIP_ID_NAME} not a string'
+        assert isinstance(TRIP_ID_NAME, str), f'TRIP_ID name {TRIP_ID_NAME} not a string'
         
         new_trip_id = TRIP_COUNTER.trip.loc[member_id, TRIP_ID_NAME]
         new_joint_trip_id = TRIP_COUNTER.joint_trip.loc[new_trip[HH_ID_NAME], JOINT_TRIP_ID_NAME]
