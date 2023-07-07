@@ -55,14 +55,15 @@ At the top level:
 |   ├─ tour.py - tour record manager, inherits trip manager [not yet implemented]
 ```
 
+### main modules
 
-### `run.py`
+#### `run.py`
 Basic runtime module to run the imputation program. This module should inherit the subclasses and then run their corresponding methods listed under `STEPS` in `settings.yaml`. 
  
-### `settings.py`
+#### `settings.py`
 This is the global settings module that gets imported by all other modules. It should also handle any setting processing, such as fetching nested setting parameters or defining defaults.
 
-### `utils`
+### utils
 This is a submodule contains global functions. It should include anything that is not specific to a particular imputation module.
 
 #### `io.py`
@@ -79,7 +80,7 @@ This takes trip table and returns determines tour ID based on each "home" purpos
 
     NOTE: Currently, this is a static function, but it could be converted to a class to handle more complex tour ID generation in the future. In that case, it should be migrated into its own module folder and inherit the Imputation class.
 
-### `nonproxy`
+### nonproxy
 This is a submodule relating to imputing proxy-reported trips.
 
 #### `impute.py`
@@ -93,8 +94,7 @@ This class handles the time-space buffer logic. It flags joint trips and checks 
 
 Once this joint trip flagging and unreported joint trip checking is complete, it then checks if there is no record of the other member(s) joint trips, if it does not exist, then the missing joint trip is created. This is done by creating a new trip record and populating it with the methods specified in the configuration file.
 
-
-### `school_trips`
+### school_trips
 This is a submodule relating to imputing school trips.
 
 #### `impute.py`
