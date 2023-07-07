@@ -10,7 +10,8 @@ import yaml
 from dotenv import dotenv_values
 
 # Load .env variables into proto namespace dictionary along with the settings.yaml
-with open('settings.yaml', 'r') as file:    
+# Eventually we could pass args to specify a settings.yaml location
+with open('configs/settings.yaml', 'r') as file:    
     SETTINGS = {**yaml.safe_load(file), **dotenv_values(".env")}
 
 # Assign any variables in the settings to the environment namespace

@@ -52,11 +52,11 @@ class TripCounter:
             self.trip = self.trip.reindex(person_df.index, fill_value=0)
             self.joint_trip = self.joint_trip.reindex(person_df.index, fill_value=0)        
             
-            zero_trips = self.trip[self.trip.trip_id == 0].index
-            zero_joint_trips = self.joint_trip[self.joint_trip.joint_trip_id == 0].index
+            zero_trips = self.trip[self.trip.trip_id == 0].index.values
+            zero_jt = self.joint_trip[self.joint_trip.joint_trip_id == 0].index.values          
             
-            self.trip[zero_trips] = self.trip[zero_trips].reset_index().apply(cat_trip_id, axis=1)
-            self.joint_trip[zero_joint_trips] = self.joint_trip[zero_joint_trips].reset_index().apply(cat_joint_trip_id, axis=1)
+            self.trip.loc[zero_trips] = self.trip.loc[zero_trips].reset_index().apply(cat_trip_id, axis=1)
+            self.joint_trip.loc[zero_jt] = self.joint_trip.loc[zero_jt].reset_index().apply(cat_joint_trip_id, axis=1)
         
         return        
     
