@@ -15,6 +15,10 @@ The `requirements.txt` file is generated using `pipreqs` tool, but you need to i
 ## Running
 To run imputation, you can execute `run.py` as a python script, but it can also be run from command line as `python -m child_trip_imputation`. The latter may be useful for running the imputation program from the pipeline.
 
+### suggest listing available steps here and brief description of what they do
+* create_tours: aggregates trips into tours
+...
+
 ## Settings
 The imputation is controlled by the `settings.yaml` file. This contains all the configurable settings, such as Postgres connection settings, input/output file paths, and imputation configuration. This file also contains a variety of parameters, such as buffer distances and column mappings. The settings file is loaded into the `settings.py` module, which is imported by all other modules. This allows the settings to be accessed from anywhere in the code.
 

@@ -37,6 +37,7 @@ def bulk_trip_to_tours(trips: pd.DataFrame) -> pd.DataFrame:
     trips.loc[trips.trip_num==1, 'tour_num'] = 1
 
     # If the destination purpose is home then it is a new tour
+    # Do we need to consider subtours here?  If so, what's the criteria? (just atwork?)
     trips.loc[trips[HOME_PURPOSES_COL].isin(HOME_PURPOSES_CODES), 'tour_num'] = 1
 
     # Determine tour num as cumulative sum per person, which iterates based on the above conditions    

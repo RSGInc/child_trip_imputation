@@ -21,6 +21,9 @@ JOINT_TRIPNUM_COL = COLNAMES['JOINT_TRIPNUM']
 class ImputeNonProxyTrips:
     
     def impute_proxy_trips(self) -> None:
+        """
+        Since this is a step, suggest we add some documentation here around what we are doing
+        """
         # Flag all unreported joint trips and update DB object.
         try:
             # Try to get trips for the current step
@@ -125,6 +128,7 @@ class ImputeNonProxyTrips:
         # Default parameters
         distance_threshold = kwargs.get('DISTANCE', 0.5)
         time_threshold = timedelta(minutes=kwargs.get('TIME', 30))
+        # I vote we remove the defaults ^ and have this as a required setting
 
         # Initialize empty joint_trip_num column
         trips_df[JOINT_TRIPNUM_COL] = pd.Series(995, dtype=int, index=trips_df.index, name=JOINT_TRIPNUM_COL)
@@ -181,7 +185,10 @@ class ImputeNonProxyTrips:
             host_trip[JOINT_TRIPNUM_COL] = TRIP_COUNTER.iterate_counter('joint_trip', host_hh_id)
             
             for i, hh_member_id, hh_member_num in members[['hh_member_id', 'hh_member_num']].itertuples():
-                # Populate new trip            
+                # Populate new trip
+                # I am worried there is double counting going on here.
+                # If person 1 reported being with person 2, and vise-versa, but neither has trip, are we double counting?
+                # can we fix by having inner loop only go through like members[host_idx:]?          
                 new_trip = Populator.populate(host_trip, hh_member_id, hh_member_num)
                 new_trips_ls.append(new_trip)
         
