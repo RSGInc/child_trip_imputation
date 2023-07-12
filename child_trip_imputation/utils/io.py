@@ -33,6 +33,7 @@ class IO:
         self.cache_log = pd.DataFrame(np.empty(0, dtype=dtypes), index=index)
         
         # TODO setup a caching system that can be used to resume from a previous step
+        # seems like ^ is done?
         if settings.CACHE_DIR and settings.RESUME_AFTER:
             log_path = os.path.join(settings.CACHE_DIR, 'log.csv')
             

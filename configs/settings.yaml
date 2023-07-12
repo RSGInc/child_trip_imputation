@@ -39,8 +39,9 @@ IMPUTATION_CONFIGS:
   impute_school_trips: configs/column_actions_school_trips.csv
 
 # If commented out, data will not be stored locally
+# suggest resume_after names the step instead of boolean (like ActivitySim)
 RESUME_AFTER: True # It will resume using the last processed step
-CACHE_DIR: 'cache'
+CACHE_DIR: 'cache'  # can give absolute path or relative to application
 OUTPUT_DIR: 'output'
 
 # Codes used to filter data on, provide the column name and the values.

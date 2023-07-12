@@ -72,6 +72,7 @@ def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, 
     hh_trips_df = trips_df[trim_cols].reset_index().set_index([HH_ID_NAME, DAYNUM_COL]).sort_index()
     
     print('Finding unreported joint trips...')
+    # Looping over households to find joint trips
     # Run loop in list comprehension for faster processing
     fixed_ls = [find_joint_hh_trips(hh_trips, distance_threshold, time_threshold) for hh_id, hh_trips in tqdm(hh_trips_df.groupby(level=(0, 1)))]
     
@@ -85,6 +86,7 @@ def fix_existing_joint_trips(trips_df: pd.DataFrame, distance_threshold: float, 
     # trips_df_old = trips_df.copy()
     
     # Update the trips table with the fixed joint trips
+    # Can we also print out the total number of joint trips reported instead of found?
     msg = f'Found {fixed_joint_trips.shape[0]} joint trips and fixed '
     msg += f'{fixed_joint_trips.corrected_hh_members.sum()} unreported household members on the joint trips.'
     print(msg)
@@ -111,6 +113,8 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
     otimes = hh_trips.depart_time.to_numpy()
     dtimes = hh_trips.arrive_time.to_numpy()
     
+    # can we drop idx's where they are the same person? Would that speed this up?
+    
     # Calculate time difference between origins and destinations
     otimedelta = np.abs(otimes[np.newaxis,:] - otimes[:,np.newaxis])
     dtimedelta = np.abs(dtimes[np.newaxis,:] - dtimes[:,np.newaxis])
@@ -120,6 +124,7 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
     ddist = haversine_distances(dlatlons, dlatlons)*settings.R
     
     # Find where distances are below the threshold
+    # <= instead of < below?  Might be important if grouping is done on time (e.g. 30 min bins)
     distmat = (odist < distance_threshold) * (ddist < distance_threshold)
     timemat = (otimedelta < time_threshold) * (dtimedelta < time_threshold)
     
@@ -130,15 +135,20 @@ def find_joint_hh_trips(hh_trips: pd.DataFrame, distance_threshold: float, time_
     # Get the indices and tranpose to get a list of paired indices
     threshold_idx = np.where(threshold_matrix)
     threshold_idx = np.array(threshold_idx).transpose()
+
+    # if threshold_idx is all False, can we return here instead of looping?
     
     # Initialize empty arrays        
     joint_idx = np.ndarray((0,2), dtype=int)    
     joint_trip_nums, idx = {}, []
     
-    # Iterate through the paired indices and check if they are unreported joint trips
+    # Iterate through the trips with overlapping space & time buffers and check if they are unreported joint trips
     # We check both pairs A->B and B->A to ensure we get unreported joint trips for both parties
     for a_row, b_row in threshold_idx:
         # Check if same mode was used
+        # does it make sense to restrict this to only shared modes? Is occupancy limiting here?
+        #  e.g. someone reports 2 people in car and another reports 3 since its an escort trip and they 
+        #       aren't sure what to put down? another example is bike vs ebike
         is_shared_mode = hh_trips.iloc[a_row][MODE] == hh_trips.iloc[b_row][MODE]        
         
         # Check if person B is unreported in the corresponding trip A

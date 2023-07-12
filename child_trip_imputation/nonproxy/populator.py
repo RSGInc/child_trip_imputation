@@ -79,6 +79,8 @@ class NonProxyTripPopulator:
         assert new_trip_id not in self.trips_df.index, f'Trip id {new_trip_id} already exists'
         assert new_joint_trip_id not in self.trips_df[JOINT_TRIP_ID_NAME], f'Joint trip id {new_joint_trip_id} already exists'
         
+        # I think we should be keeping the old trip ID's here for tracing. Am I missing that somewhere?
+
         new_trip[JOINT_TRIP_ID_NAME] = new_joint_trip_id
         new_trip.name = new_trip_id
         
